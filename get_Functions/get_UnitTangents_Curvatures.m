@@ -8,7 +8,9 @@ function [T, k] = get_UnitTangents_Curvatures(x, y, z, PARAMS)
 %  x = cos(t); 
 %  y = sin(t); 
 %  z = t;
-%  T = getUnitTangents(x,y,z);
+%  PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = 10;
+%  PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;
+%  [T, k] = get_UnitTangents_Curvatures(x, y, z, PARAMS);
 
 x=x(:); y=y(:);
 
