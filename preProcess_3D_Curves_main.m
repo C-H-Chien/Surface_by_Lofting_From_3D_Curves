@@ -1,9 +1,11 @@
 clear;
 close all;
+addpath(fullfile(pwd, 'get_Functions'));
+addpath(fullfile(pwd, 'util'));
 rng(0);
 
 %> All curve points (could be very noisy)
-Curves = load('./data/curve_graph_amsterdam_house_only.mat').houseOnly;
+Curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam_house_only.mat')).houseOnly;
 
 %> Hyper-parameters
 PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
@@ -35,11 +37,11 @@ for ci = 1:size(Curves, 1)
     curves_after_length_filter = [curves_after_length_filter; curve];
 end
 
-% if ~exist("./tmp", 'dir')
-%    mkdir("./tmp")
+% if ~exist(fullfile(pwd, "tmp"), 'dir')
+%    mkdir(fullfile(pwd, "tmp"))
 % end
 if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
-    save("./data/curves_after_length_filter", "curves_after_length_filter");
+    save(fullfile(pwd, 'data', 'curves_after_length_filter'), "curves_after_length_filter");
 end
 
 to_visualize = curves_after_length_filter;
