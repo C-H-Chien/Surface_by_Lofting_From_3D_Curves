@@ -75,6 +75,7 @@ if PARAMS.BREAK == 1
         p = 1;
         for bpi = 1:size(bp, 1)
             c = curve(p:bp(bpi), :);
+            %> discard curve if it is too short
             if ~isempty(filter_by_length({c}, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS))
                 processedCurves.points{end + 1} = c;
                 processedCurves.curvatures{end + 1} = curvatures{ci}(p:bp(bpi), :);
