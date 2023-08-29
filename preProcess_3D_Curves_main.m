@@ -62,9 +62,9 @@ if PARAMS.BREAK == 1
 end
 
 if PARAMS.BREAK == 1
-     processedCurves.points = {};
-     processedCurves.curvatures = {};
-     processedCurves.tangents = {};
+     preProcessedCurves.points = {};
+     preProcessedCurves.curvatures = {};
+     preProcessedCurves.tangents = {};
      for ci = 1:size(curves_after_length_filter, 2)
         TF = breakPoints{ci};
         curve = curves_after_length_filter{ci};
@@ -77,20 +77,20 @@ if PARAMS.BREAK == 1
             c = curve(p:bp(bpi), :);
             %> discard curve if it is too short
             if ~isempty(filter_by_length({c}, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS))
-                processedCurves.points{end + 1} = c;
-                processedCurves.curvatures{end + 1} = curvatures{ci}(p:bp(bpi), :);
-                processedCurves.tangents{end + 1} = tangents{ci}(p:bp(bpi), :);
-                assert(size(processedCurves.points{end}, 1) == size(processedCurves.curvatures{end}, 1))
-                assert(size(processedCurves.curvatures{end}, 1) == size(processedCurves.tangents{end}, 1))
+                preProcessedCurves.points{end + 1} = c;
+                preProcessedCurves.curvatures{end + 1} = curvatures{ci}(p:bp(bpi), :);
+                preProcessedCurves.tangents{end + 1} = tangents{ci}(p:bp(bpi), :);
+                assert(size(preProcessedCurves.points{end}, 1) == size(preProcessedCurves.curvatures{end}, 1))
+                assert(size(preProcessedCurves.curvatures{end}, 1) == size(preProcessedCurves.tangents{end}, 1))
             end
             p = bp(bpi) + 1;
         end
      end
 
 else
-    processedCurves.points = curves_after_length_filter;
-    processedCurves.curvatures = curvatures;
-    processedCurves.tangents = tangents;
+    preProcessedCurves.points = curves_after_length_filter;
+    preProcessedCurves.curvatures = curvatures;
+    preProcessedCurves.tangents = tangents;
 end
 
 %> Save result
@@ -100,7 +100,7 @@ end
 if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
     save(fullfile(pwd, 'tmp', 'curves_after_length_filter'), "curves_after_length_filter");
 end
-save(fullfile(pwd, 'tmp', 'processedCurves'), "processedCurves");
+save(fullfile(pwd, 'tmp', 'preProcessedCurves'), "preProcessedCurves");
 
 %> DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
 if PARAMS.DEBUG == 1
@@ -158,10 +158,10 @@ if PARAMS.PLOT == 1
     if PARAMS.BREAK == 1
         h1 = figure;
         ax = axes;
-        contour_RGB_color = unifrnd(0,1,[size(processedCurves.points, 2) 3]);
-        for ci = 1:size(processedCurves.points, 2)
+        contour_RGB_color = unifrnd(0,1,[size(preProcessedCurves.points, 2) 3]);
+        for ci = 1:size(preProcessedCurves.points, 2)
             figure(h1);
-            curve = processedCurves.points{ci};
+            curve = preProcessedCurves.points{ci};
             plot3(ax, curve(:,1), curve(:,2), curve(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
             hold(ax, 'on');
             text(ax, curve(1,1),curve(1,2), curve(1,3),num2str(ci),'Color',contour_RGB_color(ci,:), 'FontSize', 16);
