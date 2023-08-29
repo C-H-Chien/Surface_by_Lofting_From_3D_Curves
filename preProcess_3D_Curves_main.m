@@ -1,115 +1,196 @@
 clear;
 close all;
-addpath(fullfile(pwd, 'get_Functions'));
+
 addpath(fullfile(pwd, 'util'));
 rng(0);
 
 %> All curve points (could be very noisy)
-Curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam_house_only.mat')).houseOnly;
+input_curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam_house_only.mat')).houseOnly;
 
 %> Hyper-parameters
 PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
 
 PARAMS.SMOOTHING                           = 1;
 PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA        = 500;
-PARAMS.TAU_LENGTH                          = 0.6;
-PARAMS.TAU_NUM_OF_PTS                      = 600;
+PARAMS.TAU_LENGTH                          = 0.15;
+PARAMS.TAU_NUM_OF_PTS                      = 500;
 PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = 10;    %> Used for curvature computation
 PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;    %> Used for curvature computation
-
+PARAMS.BREAK                               = 1;
+PARAMS.MIN_BREAK_CURVATURE                 = 2.5e-3;
 %> For debugging purpose
-PARAMS.DEBUG                               = 1;
-PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 9; %> 26
+PARAMS.PLOT                                = 1;
+PARAMS.DEBUG                               = 0;
+PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 36; %> 26
 PARAMS.PLOT_3D_TANGENTS                    = 0;
+
+%> Smooth input curves
+if PARAMS.SMOOTHING == 1
+    smoothed_curves = cell(size(input_curves, 1), 1);
+    for ci = 1:size(input_curves, 2)
+        c = input_curves{ci};
+        smoothed_curves{ci} = smoothdata(c, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
+    end
+end
 
 %> Filter by (i) minimal length constraint, 
 %> and (ii) minimal number of curve points constraint
-curves_after_length_filter = {};
-for ci = 1:size(Curves, 1)
-    curve = Curves{ci, 1};
-    if isempty(curve), continue; end
-    if get_Curve_Length(curve) < PARAMS.TAU_LENGTH
-        continue;
-    end
-    if size(curve,1) < PARAMS.TAU_NUM_OF_PTS
-        continue;
-    end
-    curves_after_length_filter = [curves_after_length_filter; curve];
+if PARAMS.SMOOTHING == 1
+    curves_after_length_filter = filter_by_length(smoothed_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
+else
+    curves_after_length_filter = filter_by_length(input_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
 end
 
-% if ~exist(fullfile(pwd, "tmp"), 'dir')
-%    mkdir(fullfile(pwd, "tmp"))
-% end
-if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
-    save(fullfile(pwd, 'data', 'curves_after_length_filter'), "curves_after_length_filter");
+tangents = cell(1, size(curves_after_length_filter, 2));
+curvatures = cell(1, size(curves_after_length_filter, 2));
+for ci = 1:size(curves_after_length_filter, 2)
+    curve = curves_after_length_filter{ci};
+    %> Compute the unit 3D tangent vectors and the curvatures
+    [T, k] = get_UnitTangents_Curvatures(curve(:,1), curve(:,2), curve(:,3), PARAMS);
+    tangents{ci} = T;
+    curvatures{ci} = k;
 end
 
-to_visualize = curves_after_length_filter;
+if PARAMS.BREAK == 1
+    breakPoints = cell(size(curves_after_length_filter, 2), 2);
+    for ci = 1:size(curves_after_length_filter, 2)
+        curve = curves_after_length_filter{ci};
+        TF = islocalmax(curvatures{ci}, 'MinSeparation',PARAMS.TAU_NUM_OF_PTS,...
+            'MinProminence',max(min(maxk(curvatures{ci}, floor(0.1 * size(curvatures{ci}, 1)))), PARAMS.MIN_BREAK_CURVATURE));
+        breakPoints{ci} = TF;
+    end
+end
 
-sz = [size(to_visualize, 1) 3];
-contour_RGB_color = unifrnd(0,1,sz);
-smoothed_curves = cell(size(to_visualize, 1), 1);
-Unit_Tangents3D = cell(size(to_visualize, 1), 1);
-Curvatures = cell(size(to_visualize, 1), 1);
-h1 = figure(1);
-ax = axes;
-for ci = 1:size(to_visualize, 1)
-    figure(h1);
-    
-    if PARAMS.SMOOTHING == 1
-        
-        %> Smooth out curves and display it
-        curve = to_visualize{ci, 1};
-        sC = smoothdata(curve, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
-        smoothed_curves{ci} = sC;
-        plot3(ax, sC(:,1), sC(:,2), sC(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
-        hold(ax, 'on');
-        text(ax, sC(1,1),sC(1,2), sC(1,3),num2str(ci),'Color',contour_RGB_color(ci,:), 'FontSize', 16);
-        hold(ax, 'on');
-        
-        %> Compute the unit 3D tangent vectors and the curvatures
-        [T, k] = get_UnitTangents_Curvatures(sC(:,1), sC(:,2), sC(:,3), PARAMS);
-        Unit_Tangents3D{ci, 1} = T;
-        Curvatures{ci, 1} = k;
-        
-        %> DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
-        if PARAMS.DEBUG == 1
-            if ci == PARAMS.DEBUG_COLORMAP_CURVE_INDEX
-                h2 = figure(2);
-                h = scatter3(sC(:,1), sC(:,2), sC(:,3), 3, k);
-                h.MarkerFaceColor = 'flat';
-                colormap(jet);
-                colorbar;
-                axis equal;
-                set(gca, 'xlim', [min(sC(:,1))-0.2, max(sC(:,1))+0.2], ...
-                         'ylim', [min(sC(:,2))-0.2, max(sC(:,2))+0.2], ...
-                         'zlim', [min(sC(:,3))-0.2, max(sC(:,3))+0.2]);
-                xlabel(gca, "x"); ylabel(gca, "y"); zlabel(gca, "z");
-                set(gcf,'color','w');
-                fprintf("...");
+if PARAMS.BREAK == 1
+     processedCurves.points = {};
+     processedCurves.curvatures = {};
+     processedCurves.tangents = {};
+     for ci = 1:size(curves_after_length_filter, 2)
+        TF = breakPoints{ci};
+        curve = curves_after_length_filter{ci};
+        bp = find(TF ~= 0);
+        if isempty(bp) || bp(end) ~= size(curve, 1)
+            bp = [bp; size(curve, 1)];
+        end
+        p = 1;
+        for bpi = 1:size(bp, 1)
+            c = curve(p:bp(bpi), :);
+            if ~isempty(filter_by_length({c}, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS))
+                processedCurves.points{end + 1} = c;
+                processedCurves.curvatures{end + 1} = curvatures{ci}(p:bp(bpi), :);
+                processedCurves.tangents{end + 1} = tangents{ci}(p:bp(bpi), :);
+                assert(size(processedCurves.points{end}, 1) == size(processedCurves.curvatures{end}, 1))
+                assert(size(processedCurves.curvatures{end}, 1) == size(processedCurves.tangents{end}, 1))
             end
+            p = bp(bpi) + 1;
+        end
+     end
+
+else
+    processedCurves.points = curves_after_length_filter;
+    processedCurves.curvatures = curvatures;
+    processedCurves.tangents = tangents;
+end
+
+%> Save result
+if ~exist(fullfile(pwd, "tmp"), 'dir')
+    mkdir(fullfile(pwd, "tmp"))
+end
+if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
+    save(fullfile(pwd, 'tmp', 'curves_after_length_filter'), "curves_after_length_filter");
+end
+save(fullfile(pwd, 'tmp', 'processedCurves'), "processedCurves");
+
+%> DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
+if PARAMS.DEBUG == 1
+    for ci = 1:size(curves_after_length_filter, 2)
+        curve = curves_after_length_filter{ci};
+        if ci == PARAMS.DEBUG_COLORMAP_CURVE_INDEX
+            figure;
+            h = scatter3(curve(:,1), curve(:,2), curve(:,3), 3, curvatures{ci});
+            hold on;
+            if PARAMS.BREAK == 1
+                bp = curve(breakPoints{ci} ~= 0, :);
+                scatter3(bp(:, 1), bp(:, 2), bp(:, 3), 100, "red", "filled");
+            end
+            h.MarkerFaceColor = 'flat';
+            colormap(jet);
+            colorbar;
+            axis equal;
+            set(gca, 'xlim', [min(curve(:,1))-0.2, max(curve(:,1))+0.2], ...
+                     'ylim', [min(curve(:,2))-0.2, max(curve(:,2))+0.2], ...
+                     'zlim', [min(curve(:,3))-0.2, max(curve(:,3))+0.2]);
+            xlabel(gca, "x"); ylabel(gca, "y"); zlabel(gca, "z");
+            set(gcf,'color','w');
+        end
+    end
+end
+
+%> PLOT: Plot the result
+if PARAMS.PLOT == 1
+    h1 = figure;
+    ax = axes;
+    contour_RGB_color = unifrnd(0,1,[size(curves_after_length_filter, 2) 3]);
+    for ci = 1:size(curves_after_length_filter, 2)
+        figure(h1);
+        curve = curves_after_length_filter{ci};
+        plot3(ax, curve(:,1), curve(:,2), curve(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
+        hold(ax, 'on');
+        text(ax, curve(1,1),curve(1,2), curve(1,3),num2str(ci),'Color',contour_RGB_color(ci,:), 'FontSize', 16);
+        hold(ax, 'on');
+        if PARAMS.BREAK == 1
+            bp = curve(breakPoints{ci} ~= 0, :);
+            scatter3(bp(:, 1), bp(:, 2), bp(:, 3), 100, "red", "filled");
+            hold(ax, 'on');
         end
         
-        %> Plot unit tangent vectors attached to the curve points.
-%         if PARAMS.PLOT_3D_TANGENTS == 1
-%             viz_ci = 10:10:size(curve, 1);
-%             quiver3(sC(viz_ci,1), sC(viz_ci,2), sC(viz_ci,3), ...
-%                     T(viz_ci,1), T(viz_ci,2), T(viz_ci,3), 'color', 'g', 'AutoScaleFactor', 0.1, 'LineWidth', 2);
-%         end
-    else
-        %> Show curves without smoothing
-        curve = to_visualize{ci, 1};
-        plot3(curve(:,1), curve(:,2), curve(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
-        hold on;
-        text(curve(1,1),curve(1,2), curve(1,3),num2str(ci),'Color',contour_RGB_color(ci,:), 'FontSize', 16);
-        hold on;
+    end
+    datacursormode;
+    xlabel("x");
+    ylabel("y");
+    zlabel("z");
+    axis equal;
+    set(gcf,'color','w');
+    hold off;
+    
+    %> Plot breaked curves after filtering out short ones
+    if PARAMS.BREAK == 1
+        h1 = figure;
+        ax = axes;
+        contour_RGB_color = unifrnd(0,1,[size(processedCurves.points, 2) 3]);
+        for ci = 1:size(processedCurves.points, 2)
+            figure(h1);
+            curve = processedCurves.points{ci};
+            plot3(ax, curve(:,1), curve(:,2), curve(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
+            hold(ax, 'on');
+            text(ax, curve(1,1),curve(1,2), curve(1,3),num2str(ci),'Color',contour_RGB_color(ci,:), 'FontSize', 16);
+            hold(ax, 'on');
+            
+        end
+        datacursormode;
+        xlabel("x");
+        ylabel("y");
+        zlabel("z");
+        axis equal;
+        set(gcf,'color','w');
+        hold off;
+    end
+
+    %> Plot unit tangent vectors attached to the curve points.
+    if PARAMS.PLOT_3D_TANGENTS == 1
+        h2 = figure;
+        ax = axes;
+        for ci = 1:size(curves_after_length_filter, 2)
+            figure(h2);
+            curve = curves_after_length_filter{ci};
+            viz_ci = 10:10:size(curve, 1);
+            quiver3(curve(viz_ci,1), curve(viz_ci,2), curve(viz_ci,3), ...
+                    tangents{ci}(viz_ci,1), tangents{ci}(viz_ci,2), tangents{ci}(viz_ci,3), 'color', 'g', 'AutoScaleFactor', 0.1, 'LineWidth', 2);
+            hold(ax, 'on');
+        end
     end
 end
 
-datacursormode;
-xlabel("x");
-ylabel("y");
-zlabel("z");
-axis equal;
-set(gcf,'color','w');
-hold off;
+
+
+
