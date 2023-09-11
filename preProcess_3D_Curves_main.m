@@ -20,8 +20,8 @@ PARAMS.BREAK                               = 1;
 PARAMS.MIN_BREAK_CURVATURE                 = 2.5e-3;
 %> For debugging purpose
 PARAMS.PLOT                                = 1;
-PARAMS.DEBUG                               = 0;
-PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 36; %> 26
+PARAMS.DEBUG                               = 1;
+PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 24; %> 26
 PARAMS.PLOT_3D_TANGENTS                    = 0;
 
 %> Smooth input curves
@@ -52,7 +52,7 @@ for ci = 1:size(curves_after_length_filter, 2)
 end
 
 if PARAMS.BREAK == 1
-    breakPoints = cell(size(curves_after_length_filter, 2), 2);
+    breakPoints = cell(1, size(curves_after_length_filter, 2));
     for ci = 1:size(curves_after_length_filter, 2)
         curve = curves_after_length_filter{ci};
         TF = islocalmax(curvatures{ci}, 'MinSeparation',PARAMS.TAU_NUM_OF_PTS,...
@@ -123,6 +123,11 @@ if PARAMS.DEBUG == 1
                      'zlim', [min(curve(:,3))-0.2, max(curve(:,3))+0.2]);
             xlabel(gca, "x"); ylabel(gca, "y"); zlabel(gca, "z");
             set(gcf,'color','w');
+            figure;
+            plot(curvatures{ci});
+            hold on;
+            scatter(find(breakPoints{ci} == 1), curvatures{ci}(breakPoints{ci} == 1), 100, 'red', 'filled');
+            hold off;
         end
     end
 end

@@ -7,7 +7,7 @@ addpath(fullfile(pwd, 'util', 'plyread/'));
 pairs = load(fullfile(pwd, 'tmp', 'curves_proximity_pairs.mat')).curves_proximity_pairs;
 pairs_after_curvature_filter = [];
 
-PARAMS.TAU_GAUSSIAN                        = 0.4;
+PARAMS.TAU_GAUSSIAN                        = 0.35;
 PARAMS.PLOT                                = 1;
 PARAMS.HAS_GROUND_TRUTH                    = 1;
 
