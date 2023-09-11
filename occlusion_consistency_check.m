@@ -1,88 +1,124 @@
 clear;
-addpath("./util/TriangleRayIntersection/");
-addpath("./util/plyread");
-addpath("./util/");
+close all;
+
+addpath(fullfile(pwd, 'util'));
+addpath(fullfile(pwd, 'util', 'TriangleRayIntersection'));
+addpath(fullfile(pwd, 'util', 'plyread/'));
+
+PARAMS.TAU_ORIENTATION                     = 16; %> pi/n pi/16 in this case
+PARAMS.TAU_DISTANCE                        = 5; %> 5 pixels
 
 if ~exist(fullfile(pwd, 'tmp', 'image'), 'dir')
    mkdir(fullfile(pwd, 'tmp', 'image'))
 end
-
-% load projmatrix and edge
-projMatrix = {};
-edgeMaps = {};
-cnt = 0;
-while true
-   fname1 = sprintf( "./data/amsterdam-house-full/%02d.projmatrix", cnt );
-   fname2 = sprintf( "./data/TO_Edges_Amsterdam_House/%02d.mat", cnt );
-   fname3 = sprintf( "./data/amsterdam-house-full/%02d.jpg", cnt );
-   try
-        edge = load(fname2).TO_edges;
-        pic = imread(fname3);
-        map = zeros(size(pic, 1), size(pic, 2));
-        for i = 1:size(edge, 1)
-            pos_x = floor(edge(i, 1) + 1);
-            pos_y = floor(edge(i, 2) + 1);
-            map(pos_y, pos_x) = 1;
-        end
-
-        edgeMaps{end + 1} = map;
-        projMatrix{end + 1} = load(fname1);
-   catch
-       break;
-   end
-   cnt = cnt + 1;
+if ~exist(fullfile(pwd, 'tmp', 'res'), 'dir')
+   mkdir(fullfile(pwd, 'tmp', 'res'))
 end
 
-viewCnt = size(projMatrix, 2);
+orientation_bin_positive = linspace(0, 1, PARAMS.TAU_ORIENTATION + 1);
+orientation_bin_negtative = linspace(-1, 0, PARAMS.TAU_ORIENTATION + 1);
 
+[pixel_offset_col,pixel_offset_row] = meshgrid(-PARAMS.TAU_DISTANCE:PARAMS.TAU_DISTANCE,-PARAMS.TAU_DISTANCE:PARAMS.TAU_DISTANCE);
+pixel_offset_row = reshape(pixel_offset_row, [], 1);
+pixel_offset_col = reshape(pixel_offset_col, [], 1);
+
+view = 0;
 % load pairs
 pairs = load("./tmp/pairs_after_curvature_filter.mat").pairs_after_curvature_filter;
 
 % load curves
 curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
 
-kernel = ones(7, 7);
+% load tangents
+tangents = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.tangents;
 
-
-res = [];
-res_per_view = {};
-tic
-parfor i = 1:size(pairs, 1)
-    c1 = pairs(i, 1);
-    c2 = pairs(i, 2);
-    surfaceName = "./blender/output/" + "loftsurf_" + int2str(pairs(i, 1)) + "_" + int2str(pairs(i, 2)) + "_";
-    if(pairs(i, 3) == 1)
-        surfaceName = surfaceName + "normal.ply";
-    else
-        surfaceName = surfaceName + "reverse.ply";
-    end
-    disp(surfaceName);
-    % surfaceName = "./blender/loftsurf_19_32_reverse.ply";
+while true
+    tic;
+    fname1 = fullfile(pwd, 'data','amsterdam-house-full', sprintf("%02d.projmatrix", view));
+    fname2 = fullfile(pwd, 'data', 'TO_Edges_Amsterdam_House', sprintf("%02d.mat", view));
+    fname3 = fullfile(pwd, 'data', 'amsterdam-house-full', sprintf( "%02d.jpg", view ));
     try
-        [tri,pts] = plyread(surfaceName,'tri');
+        projMatrix = load(fname1);
+        edge = load(fname2).TO_edges;
+        pic_size = size(imread(fname3), 1:2);
     catch
-        continue;
+        break;
     end
-    proof = [];
-    tic
-    for view = 1:viewCnt
-        [K, RT] = Pdecomp(projMatrix{view});
+    
+
+    edge_bucket = zeros([pic_size PARAMS.TAU_ORIENTATION]);
+    for i = 1:size(edge, 1)
+        r = floor(edge(i, 2) + 1);
+        c = floor(edge(i, 1) + 1);
+        o = - 1;
+        if edge(i, 3) >= 0
+            o = find(orientation_bin_positive <= min(edge(i, 3), pi - eps) / pi, 1, 'last');
+        else
+            o = find(orientation_bin_negtative <= max(edge(i, 3), - pi + eps) / pi, 1, 'last');
+        end
+        assert(o >= 1 && o <= PARAMS.TAU_ORIENTATION);
+        assert((edge(i, 3) >= 0 && edge(i, 3) >= orientation_bin_positive(o) * pi && edge(i, 3) < orientation_bin_positive(o + 1) * pi)...
+        || (edge(i, 3) < 0 && edge(i, 3) >= orientation_bin_negtative(o) * pi && edge(i, 3) < orientation_bin_negtative(o + 1) * pi))
+        for k = 1:size(pixel_offset_col, 1)
+            nr = r + pixel_offset_row(k);
+            nc = c + pixel_offset_col(k);
+            if nr < 1 || nr > pic_size(1) || nc < 1 || nc > pic_size(2)
+                continue;
+            end
+            edge_bucket(nr, nc, o) = 1;
+        end
+    end
+
+    tangentProj = cell(size(tangents));
+    curveCam = cell(size(curves));
+    curveImg = cell(size(curves));
+    for ci = 1:size(curves, 2)
+        tangentProj{ci} = tangent_projection(curves{ci}, tangents{ci}, projMatrix);
+
+        [K, RT] = Pdecomp(projMatrix);
         R = RT(1:3,1:3);
         T = RT(1:3, 4);
-        edgeMapConv = conv2(edgeMaps{view}, kernel, 'same');
-        curveProjMap = zeros(size(edgeMapConv));
+        
+        cp = [curves{ci}'; ones(1, size(curves{ci}, 1))];
+        cp = RT * cp;
+        curveCam{ci} = cp';
+
+        pointProj = K * cp;
+        pointProj = pointProj(1:2, :) ./ pointProj(3);
+        curveImg{ci} = pointProj';
+    end
+    res = {};
+    evidence_by_view = {};
+    parfor i = 1:size(pairs, 1)
+        c1 = pairs(i, 1);
+        c2 = pairs(i, 2);
+    
+        surfaceName = "loftsurf_" + int2str(pairs(i, 1)) + "_" + int2str(pairs(i, 2)) + "_";
+        if(pairs(i, 3) == 1)
+            surfaceName = surfaceName + "normal.ply";
+        else
+            surfaceName = surfaceName + "reverse.ply";
+        end
+    
+        try
+            [tri,pts] = plyread(fullfile(pwd, 'blender', 'output', surfaceName),'tri');
+        catch
+            continue;
+        end
+
+        match_matrix = -1 * int8(ones(size(edge_bucket, 1:2)));
+        [K, RT] = Pdecomp(projMatrix);
+        R = RT(1:3,1:3);
+        T = RT(1:3, 4);
         vertices = [pts'; ones(1, size(pts, 1))];
         vertices = RT * vertices;
+        evidence = [0 0];
         for cIdx = 1:size(curves, 2)
             if cIdx == c1 || cIdx == c2
                 continue;
             end
-            curve = curves{cIdx}';
-            curve = [curve; ones(1, size(curve, 2))];
-            curve_cam = RT * curve;
-
-            for p = 1:size(curve_cam, 2)
-                point = curve_cam(:, p);
+            for p = 1:size(curveCam{cIdx}, 1)
+                point = curveCam{cIdx}(p, :);
                 vert1 = vertices(:, tri(:,1));
                 vert2 = vertices(:, tri(:,2));
                 vert3 = vertices(:, tri(:,3));
@@ -91,67 +127,41 @@ parfor i = 1:size(pairs, 1)
                 if isempty(intersectPointIdx)
                     continue;
                 end
-                pointProj = K * point;
-                pointProj = pointProj ./ pointProj(3);
-                pos_x = floor(pointProj(1) + 1);
-                pos_y = floor(pointProj(2) + 1);
-                if pos_x < 1 || pos_x > 1600 || pos_y < 1 || pos_y > 1200
-                    continue;
+                r = floor(curveImg{cIdx}(p, 2) + 1);
+                c = floor(curveImg{cIdx}(p, 1) + 1);
+                o = - 1;
+                t = tangentProj{cIdx}(p);
+                if t >= 0
+                    o = find(orientation_bin_positive <= min(t, pi - eps) / pi, 1, 'last');
+                else
+                    o = find(orientation_bin_negtative <= max(t, - pi + eps) / pi, 1, 'last');
                 end
-                curveProjMap(pos_y, pos_x) = 1;
+                assert(o >= 1 && o <= PARAMS.TAU_ORIENTATION);
+                if edge_bucket(r, c, o) ~= 0
+                    match_matrix(r, c) = 1;
+                    evidence = evidence + 1;
+                else
+                    match_matrix(r, c) = 0;
+                    evidence(2) = evidence(2) + 1;
+                end
             end
         end
-        % diff1 = conv2(edgeMapConv, [0 0 0; 1 1 1; 0 0 0], 'same') & conv2(curveProjMap, [0 0 0; 1 1 1; 0 0 0], 'same');
-        % diff2 = conv2(edgeMapConv, [0 1 0; 0 1 0; 0 1 0], 'same') & conv2(curveProjMap, [0 1 0; 0 1 0; 0 1 0], 'same');
-        % diff3 = conv2(edgeMapConv, [1 0 0; 0 1 0; 0 0 1], 'same') & conv2(curveProjMap, [1 0 0; 0 1 0; 0 0 1], 'same');
-        % diff4 = conv2(edgeMapConv, [0 0 1; 0 1 0; 1 0 0], 'same') & conv2(curveProjMap, [0 0 1; 0 1 0; 1 0 0], 'same');
-        % disp(sum([diff1 diff2 diff3 diff4], 'all'));
-        % diff1 = (~conv2(edgeMapConv, [0 0 0; 1 1 1; 0 0 0], 'same')) & conv2(curveProjMap, [0 0 0; 1 1 1; 0 0 0], 'same');
-        % diff2 = (~conv2(edgeMapConv, [0 1 0; 0 1 0; 0 1 0], 'same')) & conv2(curveProjMap, [0 1 0; 0 1 0; 0 1 0], 'same');
-        % diff3 = (~conv2(edgeMapConv, [1 0 0; 0 1 0; 0 0 1], 'same')) & conv2(curveProjMap, [1 0 0; 0 1 0; 0 0 1], 'same');
-        % diff4 = (~conv2(edgeMapConv, [0 0 1; 0 1 0; 1 0 0], 'same')) & conv2(curveProjMap, [0 0 1; 0 1 0; 1 0 0], 'same');
-        % disp(sum([diff1 diff2 diff3 diff4], 'all'));
-        overlay = curveProjMap;
-        overlay(:, :, 2) = (edgeMapConv & ones(size(edgeMapConv))) * 0.1;
-        overlay(:, :, 3) = edgeMapConv & curveProjMap;
-        % imshow(double(overlay));
-        imgName = fullfile(pwd, 'tmp', 'image', "surface_" + int2str(i) + "_view_" + int2str(view) + ".jpg");
-        imwrite(double(overlay), imgName);
-        diff = edgeMapConv & curveProjMap;
-        proof = [proof; sum(diff, 'all') sum(curveProjMap, 'all')];
-        % subplot(1, 3, 1);
-        % imshow(double(edgeMapConv));
-        % subplot(1, 3, 2);
-        % imshow(double(curveProjMap));
-        % subplot(1, 3, 3);
-        % imshow(double(diff));
-        %%%%%%
-        % break;
+        res{i} = int8(match_matrix);
+        evidence_by_view{i} = evidence;
+        visual = [];
+        % red match
+        visual(:, :, 1) = double(match_matrix == 1);
+        % green edge map
+        visual(:, :, 2) = double((sum(edge_bucket, 3) ~= 0));
+        % blue no-match
+        visual(:, :, 3) = double(match_matrix == 0);
+        visual = double(visual);
+        visual(:, :, 2) = visual(:, :, 2) * 0.1;
+        % imshow(double(visual));
+        imwrite(double(visual), fullfile(pwd, 'tmp', 'image', sprintf("surface %d view %d.jpg", i, view)));
     end
-    toc
-    %%%%%
-    % break;
-    disp([i sum(proof) surfaceName]);
-    res(i, :) = [i sum(proof) surfaceName];
-    res_per_view{i} = proof;
+    save(fullfile(pwd,'tmp', 'res', sprintf("view %d", view)), 'res');
+    save(fullfile(pwd,'tmp', 'res', sprintf("evidence in view %d", view)), 'evidence_by_view');
+    view = view + 1;
+    toc;
 end
-toc
-save("./tmp/res.mat", "res");
-save("./tmp/res_per_view.mat", "res_per_view");
-selected = find(4 * res(:, 2) <= res(:, 3));
-if ~exist("./blender/res/", 'dir')
-   mkdir("./blender/res/")
-end
-for i = 1:size(selected, 1)
-    surfaceName = "./blender/output/" + "loftsurf_" + int2str(pairs(selected(i), 1)) + "_" + int2str(pairs(selected(i), 2)) + "_";
-    if(pairs(selected(i), 3) == 1)
-        surfaceName = surfaceName + "normal.ply";
-    else
-        surfaceName = surfaceName + "reverse.ply";
-    end
-    copyfile(surfaceName, "./blender/res/")
-end
-
-% gc = min(abs(res(:, [3 4])), [], 2);
-% histogram(gc, "NumBins",10)
-% histogram(v, "NumBins",10, "EdgeColor","red");
