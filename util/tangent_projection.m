@@ -1,4 +1,4 @@
-function res = tangent_projection(curve,tangent, projMatrix)
+function [theta, vec] = tangent_projection(curve,tangent, projMatrix)
 %TANGENT_PROJECTION Project tangent vector to image plane
 %   Detailed explanation goes here
 
@@ -13,7 +13,12 @@ function res = tangent_projection(curve,tangent, projMatrix)
     tangent_endpoint = tangent_endpoint(1:2, :) ./ tangent_endpoint(3, :);
 
     %> calculate the tangent vector projection and normalize
-    res = tangent_endpoint - curve_proj;
-    res = res ./ sqrt(sum(res .^ 2, 1));
+    vec = tangent_endpoint - curve_proj;
+    vec = vec ./ sqrt(sum(vec .^ 2, 1));
+    vec = vec';
+    theta = acos(vec(:, 1));
+    %> theta in range [-pi, pi], use sin(theta) determin positive or
+    % negtive
+    theta = theta .* (ones(size(theta)) - 2 * (vec(:, 2) < 0));
 end
 
