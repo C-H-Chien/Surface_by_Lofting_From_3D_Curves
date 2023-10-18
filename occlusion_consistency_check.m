@@ -230,7 +230,7 @@ if PARAMS.RAY_TRACING  == 1
         fprintf("Finished %s\n", surfaceName);
         toc;
     end
-    save(fullfile(pwd, 'tmp', 'pairs_inter.mat'), "surface_intersection_count");
+    save(fullfile(pwd, 'tmp', 'surface_intersection_count.mat'), "surface_intersection_count");
     toc;
 else
     surface_intersection_count = load(fullfile(pwd, 'tmp', 'surface_intersection_count.mat')).surface_intersection_count;
