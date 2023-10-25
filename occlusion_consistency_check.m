@@ -81,7 +81,6 @@ if PARAMS.GENERATE_MATCHES == 1
                 end
             end
         end
-    
         edge_bucket = NaN(pic_size);
         for i = 1:size(edge, 1)
             r = floor(edge(i, 2) + 1);
@@ -95,6 +94,8 @@ if PARAMS.GENERATE_MATCHES == 1
                 edge_bucket(nr, nc) = edge(i, 3);
             end
         end
+
+
         match = [];
         unmatch = [];
         for i = 1:pic_size(1)
@@ -124,9 +125,9 @@ if PARAMS.GENERATE_MATCHES == 1
         matchCurves_view{end + 1} = match;
         unmatchCurves_view{end + 1} = unmatch;
         curvesProj_view{end + 1} = curvesProj;
-        fileID = fopen(fullfile(pwd, 'tmp', 'optix', sprintf("view_%d.txt", viewCnt)),'w');
-        fprintf(fileID,'%d %d %f %f %f %f %f %f %f\n', match');
-        fclose(fileID);
+        % fileID = fopen(fullfile(pwd, 'tmp', 'optix', sprintf("view_%d.txt", viewCnt)),'w');
+        % fprintf(fileID,'%d %d %f %f %f %f %f %f %f\n', match');
+        % fclose(fileID);
         fprintf("Finished curve matching in view %d\n", viewCnt);
         viewCnt = viewCnt + 1;
     end
