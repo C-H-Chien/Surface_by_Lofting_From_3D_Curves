@@ -17,7 +17,7 @@ for ci = 1:size(input_curves, 2)
     for cj = ci + 1:size(input_curves, 2)
         c1 = input_curves{ci};
         c2 = input_curves{cj};
-        dis = curve_to_curve_distance(c1, c2);
+        dis = curve_to_curve_distance_estimation(c1, c2, 20);
         distances = [distances; [ci cj dis]];
     end
 end
