@@ -1,11 +1,12 @@
-disp("Start filter_by_length")
-filter_by_length;
+tic
+disp("Start pre-process")
+preProcess_3D_Curves_main;
 
 disp("Start proximity_paring")
 proximity_paring;
 
-disp("Start blender_lofting")
-blender_lofting;
+disp("Start lofting")
+loft;
 
 disp("Start gaussian_curvature_filter")
 gaussian_curvature_filter;
@@ -13,7 +14,7 @@ gaussian_curvature_filter;
 disp("Start occlusion_consistency_check")
 occlusion_consistency_check;
 
-disp("Start export")
-export;
+toc
 
 disp("Finished")
+
