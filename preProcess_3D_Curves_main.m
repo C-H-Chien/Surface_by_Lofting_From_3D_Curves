@@ -5,7 +5,7 @@ addpath(fullfile(pwd, 'util'));
 rng(0);
 
 %> All curve points (could be very noisy)
-input_curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam_house_only.mat')).houseOnly;
+input_curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam.mat')).complete_curve_graph';
 
 %> Hyper-parameters
 PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
