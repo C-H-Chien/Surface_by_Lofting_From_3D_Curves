@@ -4,14 +4,14 @@ tic;
 addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'util', 'TriangleRayIntersection'));
 addpath(fullfile(pwd, 'util', 'plyread/'));
-
+addpath(fullfile(pwd, 'util','rayBoxIntersection/'));
 PARAMS.TAU_ORIENTATION                     = pi/18; %> 5 deg
 PARAMS.TAU_DISTANCE                        = 3; %> 5 pixels
 PARAMS.GENERATE_MATCHES                    = 1;
 PARAMS.RAY_TRACING                         = 1;
 PARAMS.SURFACE_FILTERING                   = 1;
 PARAMS.SURFACE_FILTERING_THRESHOLD         = 300;
-PARAMS.SAVE_MATCH_PLOT_2D                  = 1;
+PARAMS.SAVE_MATCH_PLOT_2D                  = 0;
 PARAMS.SHOW_PLOT_MATCH                     = 0;
 PARAMS.PLOT_MATCH_VIEW                     = 10;
 
@@ -35,22 +35,27 @@ edgeList_view = {};
 if PARAMS.GENERATE_MATCHES == 1
     while 1
         fname1 = fullfile(pwd, 'data','amsterdam-house-full', sprintf("%02d.projmatrix", viewCnt));
-        fname2 = fullfile(pwd, 'data', 'TO_Edges_Amsterdam_House', sprintf("%02d.mat", viewCnt));
-        fname3 = fullfile(pwd, 'data', 'amsterdam-house-full', sprintf( "%02d.jpg", viewCnt ));
         try
             projMatrix = load(fname1);
-            edge = load(fname2).TO_edges;
-            pic_size = size(imread(fname3), 1:2);
         catch
-            break;
+            break
         end
+        viewCnt = viewCnt + 1;
+    end
+    parfor view = 1:viewCnt
+        fname1 = fullfile(pwd, 'data','amsterdam-house-full', sprintf("%02d.projmatrix", view-1));
+        fname2 = fullfile(pwd, 'data', 'TO_Edges_Amsterdam_House', sprintf("%02d.mat", view-1));
+        fname3 = fullfile(pwd, 'data', 'amsterdam-house-full', sprintf( "%02d.jpg", view-1));
+        projMatrix = load(fname1);
+        edge = load(fname2).TO_edges;
+        pic_size = size(imread(fname3), 1:2);
         [K, RT] = Pdecomp(projMatrix);
         R_t = RT(1:3,1:3);
         T_t = RT(1:3, 4);
     
         C_t = -R_t' * T_t;  %> Camera position in world coord
     
-        edgeList_view{end + 1} = edge;
+        edgeList_view{view} = edge;
         tangentProj = cell(size(tangents));
         curvesProj = nan([pic_size, 5]);
         curveCam = cell(size(curves));
@@ -122,14 +127,13 @@ if PARAMS.GENERATE_MATCHES == 1
             end
         end
     
-        matchCurves_view{end + 1} = match;
-        unmatchCurves_view{end + 1} = unmatch;
-        curvesProj_view{end + 1} = curvesProj;
+        matchCurves_view{view} = match;
+        unmatchCurves_view{view} = unmatch;
+        curvesProj_view{view} = curvesProj;
         % fileID = fopen(fullfile(pwd, 'tmp', 'optix', sprintf("view_%d.txt", viewCnt)),'w');
         % fprintf(fileID,'%d %d %f %f %f %f %f %f %f\n', match');
         % fclose(fileID);
-        fprintf("Finished curve matching in view %d\n", viewCnt);
-        viewCnt = viewCnt + 1;
+        fprintf("Finished curve matching in view %d\n", view-1);
     end
     save(fullfile(pwd,'tmp', 'curve_matches.mat'), "curvesProj_view", "matchCurves_view", "unmatchCurves_view", "edgeList_view", '-v7.3');
 else
@@ -204,12 +208,17 @@ if PARAMS.RAY_TRACING  == 1
         catch
             continue;
         end
-    
+        bbox_vmin = min(pts);
+        bbox_vmax = max(pts);
         for v = 1:viewCnt
             for k = 1:size(matchCurves_view{v}, 1)
                 ct = matchCurves_view{v}(k, 3:5);
                 dir = matchCurves_view{v}(k, 6:8);
                 dis = matchCurves_view{v}(k, 9);
+                interset = rayBoxIntersection(ct, dir, bbox_vmin, bbox_vmax)
+                if ~interset
+                    continue;
+                end
                 [intersect, t] = TriangleRayIntersection(ct, dir, pts(tri(:, 1), :), pts(tri(:, 2), :), pts(tri(:, 3), :), 'lineType' , 'ray');
                 %> visualization
                 % trimesh(tri, pts(:, 1), pts(:, 2), pts(:, 3))

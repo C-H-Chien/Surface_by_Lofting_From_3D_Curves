@@ -5,14 +5,14 @@ clear
 addpath(fullfile(pwd, 'util', 'curvatures'));
 addpath(fullfile(pwd, 'util', 'plyread/'));
 pairs = load(fullfile(pwd, 'tmp', 'curves_proximity_pairs.mat')).curves_proximity_pairs;
-pairs_after_curvature_filter = [];
+
 
 PARAMS.TAU_GAUSSIAN                        = 0.35;
-PARAMS.PLOT                                = 1;
+PARAMS.PLOT                                = 0;
 PARAMS.HAS_GROUND_TRUTH                    = 1;
-
+pairs_after_curvature_filter = [];
 res = [];
-for i = 1:size(pairs, 1)
+parfor i = 1:size(pairs, 1)
     n1 = pairs(i, 1);
     n2 = pairs(i, 2);
     fname1 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_normal.ply");
@@ -31,33 +31,35 @@ for i = 1:size(pairs, 1)
     res = [res; [n1 n2 gc1 gc2]];
 
     if isnan(gc1) && (~isnan(gc2)) && abs(gc2) < PARAMS.TAU_GAUSSIAN
-        pairs_after_curvature_filter = [pairs_after_curvature_filter; n1 n2 0 gc1 gc2];
+        pairs_after_curvature_filter(i, :) = [n1 n2 0 gc1 gc2];
         continue;
     end
 
     if isnan(gc2) && (~isnan(gc1)) && abs(gc1) < PARAMS.TAU_GAUSSIAN
-        pairs_after_curvature_filter = [pairs_after_curvature_filter; n1 n2 1 gc1 gc2];
+        pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
         continue;
     end
 
     if abs(gc1) < PARAMS.TAU_GAUSSIAN && abs(gc1) < abs(gc2)
-        pairs_after_curvature_filter = [pairs_after_curvature_filter; n1 n2 1 gc1 gc2];
+        pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
         % copyfile(fname1, "./blender/gaussian/");
         continue;
     end
 
     if abs(gc2) < PARAMS.TAU_GAUSSIAN && abs(gc2) < abs(gc1)
-        pairs_after_curvature_filter = [pairs_after_curvature_filter; n1 n2 0 gc1 gc2];
+        pairs_after_curvature_filter(i, :) = [n1 n2 0 gc1 gc2];
         % copyfile(fname2, "./blender/gaussian/");
         continue;
     end
 
     if abs(gc1) < PARAMS.TAU_GAUSSIAN || abs(gc2) < PARAMS.TAU_GAUSSIAN
-        pairs_after_curvature_filter = [pairs_after_curvature_filter; n1 n2 1 gc1 gc2];
+        pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
         % copyfile(fname1, "./blender/gaussian/");
     end
-end
 
+    pairs_after_curvature_filter(i, :) = [-1 -1 -1 -1 -1];
+end
+pairs_after_curvature_filter(pairs_after_curvature_filter(:, 1) == -1, :) = [];
 save(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter'), "pairs_after_curvature_filter");
 
 if PARAMS.PLOT
