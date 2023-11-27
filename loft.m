@@ -21,8 +21,10 @@ parfor i = 1:size(pairs, 1)
     
     fname1 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_normal.ply");
     fname2 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_reverse.ply");
-
+    
+    %> loft surface in two possible ways and save
     [vertices, faces] = loft_surface(c1, c2, 0, 10);
+
     % plot3(c1(:, 1), c1(:, 2), c1(:, 3),"Color",'blue', 'linewidth',3);
     % hold on;
     % plot3(c2(:, 1), c2(:, 2), c2(:, 3), "Color",'blue', 'linewidth',3);
@@ -30,6 +32,7 @@ parfor i = 1:size(pairs, 1)
     % TR = triangulation(faces, vertices);
     % trisurf(TR, 'FaceColor', 'yellow');
     % hold off
+
     mesh = surfaceMesh(vertices,faces);
     writeSurfaceMesh(mesh,fname1);
 

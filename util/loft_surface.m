@@ -1,21 +1,27 @@
 function [vertices,faces] = loft_surface(curve1,curve2, reverse_flag, divd)
 
+%> devide two curves equally
 pt_on_c1 = curve1(ceil(linspace(1, size(curve1, 1), divd)), :);
 pt_on_c2 = curve2(ceil(linspace(1, size(curve2, 1), divd)), :);
 
+%> if loft reversly, flip one of the curves
 if reverse_flag
     pt_on_c2 = flip(pt_on_c2, 1);
 end
 
 vertices = [];
 pt_map = [];
+%> connect points on two curves and divide the connection line again
 for i = 1:divd
+    %> start point and end point
     sp = pt_on_c1(i, :);
     ep = pt_on_c2(i, :);
-
+    
+    %> calculate distance direction
     dis = norm(sp - ep);
     dir = (ep - sp) ./ dis;
-
+    
+    %> divide the connection line and store the divide points
     factor = dis / divd;
     t = [1:divd - 1] * factor;
     sep = repmat(dir', 1, divd - 1);
@@ -27,6 +33,7 @@ for i = 1:divd
     pt_map = [pt_map [sz1+1:sz2]'];
 end
 
+%> create triangle mesh based on the divide points
 faces = [];
 [sz1, sz2] = size(pt_map);
 for i = 1:sz1 - 1
