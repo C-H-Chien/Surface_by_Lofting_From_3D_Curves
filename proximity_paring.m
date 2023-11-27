@@ -13,6 +13,7 @@ curves_proximity_pairs = [];
 
 distances = [];
 
+%> calculate the distance between every two curves
 for ci = 1:size(input_curves, 2)
     for cj = ci + 1:size(input_curves, 2)
         c1 = input_curves{ci};
@@ -21,10 +22,13 @@ for ci = 1:size(input_curves, 2)
         distances = [distances; [ci cj dis]];
     end
 end
+
+%> filter based on TAU_ALPHA
 curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA(1) & distances(:, 3) <= PARAMS.TAU_ALPHA(2), :);
 
 save(fullfile(pwd, 'tmp', 'curves_proximity_pairs.mat'), "curves_proximity_pairs");
 
+%> plot distance distribution
 if PARAMS.PLOT 
     histogram(distances(:,3), "NumBins",10);
     hold on;
