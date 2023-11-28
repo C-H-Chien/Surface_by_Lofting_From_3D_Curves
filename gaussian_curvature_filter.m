@@ -19,6 +19,8 @@ parfor i = 1:size(pairs, 1)
     fname2 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_reverse.ply");
     s1 = nan; s2 = nan;
     gc1 = nan; gc2 = nan;
+
+    %> calculate curvature of two surface posibility from 1 pair of curves
     try
         [tri,pts] = plyread(fname1,'tri');
 
@@ -29,7 +31,8 @@ parfor i = 1:size(pairs, 1)
         gc2 = mean(curvatures(pts(:, 1), pts(:, 2), pts(:, 3), double(tri)));
     end
     res = [res; [n1 n2 gc1 gc2]];
-
+    
+    %> Keep the surface if there is 1 valid posibility
     if isnan(gc1) && (~isnan(gc2)) && abs(gc2) < PARAMS.TAU_GAUSSIAN
         pairs_after_curvature_filter(i, :) = [n1 n2 0 gc1 gc2];
         continue;
@@ -39,7 +42,9 @@ parfor i = 1:size(pairs, 1)
         pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
         continue;
     end
-
+    
+    %> If both posibilities have valid curvature, keep the one
+    %> with lower curvature
     if abs(gc1) < PARAMS.TAU_GAUSSIAN && abs(gc1) < abs(gc2)
         pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
         % copyfile(fname1, "./blender/gaussian/");
@@ -59,9 +64,11 @@ parfor i = 1:size(pairs, 1)
 
     pairs_after_curvature_filter(i, :) = [-1 -1 -1 -1 -1];
 end
+%> save
 pairs_after_curvature_filter(pairs_after_curvature_filter(:, 1) == -1, :) = [];
 save(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter'), "pairs_after_curvature_filter");
 
+%> plot curvature distribution
 if PARAMS.PLOT
     gc = min(abs(res(:, 3:4)), [], 2);
     histogram(gc, "NumBins",40);
