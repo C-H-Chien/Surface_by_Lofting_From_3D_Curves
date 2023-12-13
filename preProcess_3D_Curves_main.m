@@ -26,7 +26,7 @@ PARAMS.PLOT_3D_TANGENTS                    = 0;
 
 %> Smooth input curves
 if PARAMS.SMOOTHING == 1
-    smoothed_curves = cell(size(input_curves, 1), 1);
+    smoothed_curves = cell(size(input_curves, 1), 2);
     for ci = 1:size(input_curves, 2)
         c = input_curves{ci};
         smoothed_curves{ci} = smoothdata(c, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
