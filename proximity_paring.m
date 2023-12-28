@@ -6,8 +6,8 @@ addpath(fullfile(pwd, 'util'));
 input_curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
 
 PARAMS.TAU_ALPHA                           = [0.2 1.3];
-PARAMS.PLOT                                = 1;
-PARAMS.HAS_GROUND_TRUTH                    = 1;
+PARAMS.PLOT                                = 0;
+PARAMS.HAS_GROUND_TRUTH                    = 0;
 
 curves_proximity_pairs = [];
 

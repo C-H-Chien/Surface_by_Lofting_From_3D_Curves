@@ -19,8 +19,8 @@ PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;    %> Used for curvature comput
 PARAMS.BREAK                               = 1;
 PARAMS.MIN_BREAK_CURVATURE                 = 2.5e-3;
 %> For debugging purpose
-PARAMS.PLOT                                = 1;
-PARAMS.DEBUG                               = 1;
+PARAMS.PLOT                                = 0;
+PARAMS.DEBUG                               = 0;
 PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 24; %> 26
 PARAMS.PLOT_3D_TANGENTS                    = 0;
 
