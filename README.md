@@ -3,7 +3,7 @@ This is Brown University LEMS lab internal collaborative research project. <br /
 To be updated ...
 
 ## How to run
-- Modify input path in ``preProcess_3D_Curves_main`` and ``occlusion_consistency_check``.
+- Download [sample data](https://drive.google.com/file/d/1gYFKFiUe2GCFWLKpOgJ_s1Fn8xTjoQqE/view?usp=drive_link) or use another input, including 3d curves, 2d edges, images and projection matrices, and modify input path in ``preProcess_3D_Curves_main`` and ``occlusion_consistency_check``.
 - Run ``run.m``
 - Use Blender with ``combine.py`` to check the output
 
