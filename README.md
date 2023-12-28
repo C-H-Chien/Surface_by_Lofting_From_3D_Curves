@@ -2,6 +2,11 @@
 This is Brown University LEMS lab internal collaborative research project. <br />
 To be updated ...
 
+## How to run
+- Modify input path in ``preProcess_3D_Curves_main`` and ``occlusion_consistency_check``.
+- Run ``run.m``
+- Use Blender with ``combine.py`` to check the output
+
 ## Contributors
 Zichang Gao (zichang_gao@brown.edu) <br />
 Chiang-Heng Chien (chiang-heng_chien@brown.edu)
