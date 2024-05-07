@@ -1,6 +1,5 @@
 ## Introduction
-This is Brown University LEMS lab internal collaborative research project. <br />
-To be updated ...
+This is Brown University LEMS lab internal collaborative research project which aims to reconstruct surfaces from a set of 3D curves and multiple 2D images. Basically, it is a a hypothesis and verification framework, where many hypothesized surfaces are constructed from pairs of 3D curves, and are subsequently verified via projecting to multiview images to seek supports from detected 2D [third-order edges](https://github.com/C-H-Chien/Third-Order-Edge-Detector). This work has been proposed by the papers listed in references, but the source code is missing. Here, we *(i)* surrect its experiments, *(ii)* optimize the pipeline to make it super efficient, and *(iii)* run on a modern synthetic dataset, *i.e.*, [ABC dataset](https://deep-geometry.github.io/abc-dataset/) with rendered multiviews from [NEF](https://github.com/yunfan1202/NEF_code), enabling us to easy debug the entire process. <br />
 
 ## How to run
 - Download [sample data](https://drive.google.com/file/d/1gYFKFiUe2GCFWLKpOgJ_s1Fn8xTjoQqE/view?usp=drive_link) or use another input, including 3d curves, 2d edges, images and projection matrices, and modify input path in ``preProcess_3D_Curves_main`` and ``occlusion_consistency_check``.
