@@ -3,13 +3,20 @@ clear;
 
 import yaml.loadFile
 
-%> Use object 00000325 as example, replace pathes to other objects for your
-%usage.
+%> Set 1 to Write_to_Projmatrix_Files is writing projection matrices as a 
+%  series of .projmatrix files, if necessary. This is mainly used for multiview curve sketch
+Write_to_Projmatrix_Files = 1;
+
+%> Use object 00000325 as example, replace paths to other ABC dataset 
+%  objects for your own usage.
+object_tag_name = "00000325";
 
 %> curve points sampled from ABC dataset's parametrized representation
 input_curves = load("curves.mat").curve_points;
+
 %> yml file containing matrices of all the views
-ymlPath = fullfile(pwd, "00000325/transforms_train.json");
+mfiledir = fileparts(mfilename('fullpath'));
+ymlPath = fullfile(mfiledir, object_tag_name, "transforms_train.json");
 
 data = yaml.loadFile(ymlPath);
 view_matrix = data.frames;
@@ -30,7 +37,6 @@ for i = 1:size(view_matrix, 2)
     
     K_view{end + 1} = K;
     RT_view{end + 1} = RT;
-    
 end
 
 
@@ -53,7 +59,7 @@ projection_matrix_by_view = {};
 
 for i = 1:viewCnt
     %> image of the object from the view i
-    imgPath = fullfile(pwd, "00000325/train_img/", sprintf("%d_colors.png", i - 1));
+    imgPath = fullfile(mfiledir, object_tag_name, "/train_img/", sprintf("%d_colors.png", i - 1));
     %> the dataset's matrix is from camera to world. Use inverse to get the
     %matrix from world to camera
     trans = inv(RT_view{i});
@@ -82,5 +88,16 @@ for i = 1:viewCnt
     projection_matrix_by_view{end + 1} = projMat;
     disp(". ")
 end
+
 %> save the matrix converting result
-save("./projection.mat", "projection_matrix_by_view");
+save_path = fullfile(mfiledir, "projection.mat");
+save(save_path, "projection_matrix_by_view");
+
+if Write_to_Projmatrix_Files == 1
+    for i = 1:length(projection_matrix_by_view)
+        proj_matrix = projection_matrix_by_view{i};
+        path = fullfile(mfiledir, "projmatrix", sprintf("%d_colors.projmatrix", i - 1));
+        writematrix(proj_matrix, path, "FileType", "text", "Delimiter", " ");
+    end
+end
+
