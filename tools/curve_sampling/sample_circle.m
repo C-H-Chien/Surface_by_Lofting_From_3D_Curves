@@ -9,12 +9,12 @@ function [curve_points] = sample_circle(location, radius, x_axis, y_axis, parame
     pt(:, 1) = [];
     while size(pt, 2) > 0
         last_pt = curve_points(:, end);
-        min_distance = -1;
+        min_distance = inf;
         closest_idx = -1;
         for i = 1:size(pt, 2)
             curr_pt = pt(:, i);
             dis = sqrt(sum(abs(curr_pt - last_pt) .^ 2, 'all'));
-            if i == 1 || dis < min_distance
+            if dis < min_distance
                 min_distance = dis;
                 closest_idx = i;
             end

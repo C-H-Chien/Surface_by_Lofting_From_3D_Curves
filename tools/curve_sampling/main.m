@@ -2,10 +2,14 @@ clear;
 close all;
 
 import yaml.*
-addpath(fullfile(pwd, "bspline/"));
+mfiledir = fileparts(mfilename('fullpath'));
+addpath(fullfile(mfiledir, "bspline/"));
 
 %> Use abc_0000_feat_v00/00000325 as example
-ymlPath = fullfile(pwd, "dataset/00000325/00000325_3062bccff48e47a2b9de05e3_features_020.yml");
+dataset_path = "/home/chchien/datasets/ABC_NEF/";
+object_tag = "00000568";
+
+ymlPath = fullfile(dataset_path, object_tag, strcat(object_tag, ".yml"));
 data = yaml.loadFile(ymlPath);
 curves = data.curves;
 
@@ -39,4 +43,5 @@ for i = 1:size(curve_points, 2)
     hold on
 end
 hold off;
-save(fullfile(pwd, "curves.mat"), "curve_points");
+axis equal;
+save(fullfile(dataset_path, object_tag, "curves.mat"), "curve_points");
