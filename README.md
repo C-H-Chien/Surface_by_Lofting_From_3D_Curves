@@ -7,8 +7,11 @@ This is Brown University LEMS lab internal collaborative research project which 
 - Use Blender with ``combine.py`` to check the output
 
 ## Contributors
-Zichang Gao (zichang_gao@brown.edu) <br />
-Chiang-Heng Chien (chiang-heng_chien@brown.edu)
+Zichang Gao (zichang_gao@brown.edu) (Research Asistant, Jul. 2023 - Dec. 2023) <br />
+Chiang-Heng Chien (chiang-heng_chien@brown.edu) (Ph.D. Student, Jan. 2021 - Now) <br />
+*Advisory Board:*
+Prof. Benjamin Kimia (benjamin_kimia@brown.edu)
+Prof. Ricardo Fabbri (rfabbri@iprj.uerj.br)
 
 ## References
 ``Usumezbas, Anil, Ricardo Fabbri, and Benjamin B. Kimia. "From multiview image curves to 3D drawings." In Computer Vision–ECCV 2016: 14th European Conference, Amsterdam, The Netherlands, October 11–14, 2016, Proceedings, Part IV 14, pp. 70-87. Springer International Publishing, 2016.`` ([Paper Link](https://link.springer.com/chapter/10.1007/978-3-319-46493-0_5)) <br />
