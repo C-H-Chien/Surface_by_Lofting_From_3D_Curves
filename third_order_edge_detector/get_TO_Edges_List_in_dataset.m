@@ -9,7 +9,7 @@
 %                   (2) https://github.com/C-H-Chien/Third-Order-Edge-Detector
 
 % mfiledir = fileparts(mfilename('fullpath'));
-Dataset_Path = '/home/chchien/datasets/ABC_NEF/00002211/train_img/';
+Dataset_Path = '/media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/home/chchien/datasets/ABC-NEF/00000162/train_img/';
 postfix = '.png';
 All_Images = dir(strcat(Dataset_Path, '*', postfix));
 
@@ -17,6 +17,7 @@ All_Images = dir(strcat(Dataset_Path, '*', postfix));
 thresh = 1;
 sigma = 1;
 n = 1;
+format long;
 
 for i = 1:size(All_Images, 1)
     src_Data_Path = strcat(Dataset_Path, All_Images(i).name);
@@ -30,8 +31,14 @@ for i = 1:size(All_Images, 1)
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     TO_Edges_Name = extractBefore(All_Images(i).name, postfix);
 
+    %> Save as .edg file
     save_edg([Dataset_Path, TO_Edges_Name, '.edg'], TO_edges, [size(img_, 1), size(img_, 2)]);
-    % save(['/home/chchien/TO_Edges_Amsterdam_House/', TO_Edges_Name, '.mat'], 'TO_edges');
+
+    %> Save as .txt file
+    img_index               = extractBefore(string(All_Images(i).name), "_");
+    output_edges_file_txt   = strcat("Edge_", img_index, "_t", string(thresh), ".txt");
+    output_file_path        = fullfile(Dataset_Path, output_edges_file_txt);
+    writematrix(TO_edges, output_file_path, 'Delimiter', 'tab');
     
     %> Monitor the progress
     fprintf(". ");
