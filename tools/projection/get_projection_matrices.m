@@ -5,8 +5,8 @@ import yaml.loadFile
 
 %> Set 1 to Write_to_Projmatrix_Files is writing projection matrices as a 
 %  series of .projmatrix files, if necessary. This is mainly used for multiview curve sketch
-Write_to_Projmatrix_Files = 1;
-Write_rotations_and_translations_in_files = 1;
+Write_to_Projmatrix_Files = 0;
+Write_rotations_and_translations_in_files = 0;
 Check_Camera_Rot_Transl = 1;
 
 %> curve points sampled from ABC dataset's parametrized representation
@@ -14,8 +14,8 @@ Check_Camera_Rot_Transl = 1;
 
 %> yml file containing matrices of all the views
 media_storage = "/media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/";
-dataset_name = "DTU/";  %> ABC-NEF, DTU, Replica
-object_tag_name = "scan122/";
+dataset_name = "ABC-NEF/";  %> ABC-NEF, DTU, Replica
+object_tag_name = "00000325/";
 mfiledir = strcat(media_storage, "/home/chchien/datasets/", dataset_name);
 if strcmp(dataset_name, "ABC-NEF/")
     json_file_name = "transforms_train.json";
