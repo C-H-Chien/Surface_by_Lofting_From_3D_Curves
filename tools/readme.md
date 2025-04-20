@@ -14,6 +14,9 @@ This one is used to convert camera matrices in the ABC CAD object dataset to the
 
 ## Use ABC dataset as input
 
+[April-20-2025 Update] Extracting ground-truth curve points from the ABC-NEF dataset has been isolated from the NEF_code official github repo. Run ``get_ABC_NEF_gt_curve_points.py`` and the outputs of the ground-truth curves as well as all the curve points will reside under ``gt_curve_points`` folder. You can generate the ground-truth curve points of only one object speficied by its object name (_e.g._, 00000006) [here](https://github.com/C-H-Chien/Surface_by_Lofting_From_3D_Curves/blob/main/tools/get_ABC_NEF_gt_curve_points.py#L103), or set ``do_only_on_desired_obj`` [here](https://github.com/C-H-Chien/Surface_by_Lofting_From_3D_Curves/blob/main/tools/get_ABC_NEF_gt_curve_points.py#L104) as ``false`` to generate ground-truth curve points of _all_ objects. <br />
+Note that before running ``get_ABC_NEF_gt_curve_points.py`` code, make sure to download the `.obj` files of the ABC-NEF dataset at this [Google Drive](https://drive.google.com/file/d/1DmDi0QdfwZodXWXA-Nv8WRfTlBnIPsMO/view?usp=share_link).
+
 ABC dataset example download
 
 ```shell
