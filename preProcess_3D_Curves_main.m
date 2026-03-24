@@ -5,45 +5,57 @@ addpath(fullfile(pwd, 'util'));
 rng(0);
 
 %> All curve points (could be very noisy)
-input_curves = load(fullfile(pwd, 'data', 'curve_graph_amsterdam.mat')).complete_curve_graph';
+dataset = "ABC-NEF";
+% input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_amsterdam.mat')).complete_curve_graph';
+input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_ABC_NEF_00000325.mat')).complete_curve_graph;
 
-%> Hyper-parameters
-PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
-
-PARAMS.SMOOTHING                           = 1;
+%>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hyper-parameters >>>>>>>>>>>>>>>>>>>>>>>>>>>>
+%> For a clean and perfect 3D curve network, e.g., GT curves from the ABC-NEF dataset, 
+%  disable SMOOTHING and APPLY_LENGTH_CONSTRAINTS
+%> (i) Smoothing the curves
+PARAMS.SMOOTHING                           = 0;
 PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA        = 500;
+%> (ii) Filter the curves by length constraint
+PARAMS.APPLY_LENGTH_CONSTRAINTS            = 0;
 PARAMS.TAU_LENGTH                          = 0.15;
 PARAMS.TAU_NUM_OF_PTS                      = 500;
-PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = 10;    %> Used for curvature computation
-PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;    %> Used for curvature computation
-PARAMS.BREAK                               = 1;
+%> (iii) Gaussian derivatives for computing the curve curvature
+PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = 10;
+PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;
+%> (iv) Break the curve at the high curvature point
+PARAMS.BREAK                               = 0;
 PARAMS.MIN_BREAK_CURVATURE                 = 2.5e-3;
-%> For debugging purpose
-PARAMS.PLOT                                = 0;
-PARAMS.DEBUG                               = 0;
-PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 24; %> 26
+%> (v) For debugging purpose
+PARAMS.PLOT                                = 1;
+PARAMS.DEBUG                               = 1;
+PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 10;
 PARAMS.PLOT_3D_TANGENTS                    = 0;
+PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
+%>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
-%> Smooth input curves
+%> (i) Smooth input curves
 if PARAMS.SMOOTHING == 1
-    smoothed_curves = cell(size(input_curves, 1), 2);
-    for ci = 1:size(input_curves, 2)
+    smoothed_curves = cell(length(input_curves), 2);
+    for ci = 1:length(input_curves)
         c = input_curves{ci};
         smoothed_curves{ci} = smoothdata(c, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
     end
+else
+    smoothed_curves = input_curves;
 end
 
-%> Filter by (i) minimal length constraint, 
-%> and (ii) minimal number of curve points constraint
-if PARAMS.SMOOTHING == 1
+%> (ii) Filter the curves by length constraint using minimal length 
+%  constraint and minimal number of curve points
+if PARAMS.APPLY_LENGTH_CONSTRAINTS == 1
     curves_after_length_filter = filter_by_length(smoothed_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
 else
-    curves_after_length_filter = filter_by_length(input_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
+    curves_after_length_filter = smoothed_curves;
 end
 
+%> (iii) Compute the tangents and curvatures at each point on each curve
 tangents = cell(1, size(curves_after_length_filter, 2));
 curvatures = cell(1, size(curves_after_length_filter, 2));
-for ci = 1:size(curves_after_length_filter, 2)
+for ci = 1:length(curves_after_length_filter)
     curve = curves_after_length_filter{ci};
     %> Compute the unit 3D tangent vectors and the curvatures
     [T, k] = get_UnitTangents_Curvatures(curve(:,1), curve(:,2), curve(:,3), PARAMS);
@@ -51,21 +63,20 @@ for ci = 1:size(curves_after_length_filter, 2)
     curvatures{ci} = k;
 end
 
+%> (iv) Break the curves at points with high curvature
+breakPoints = cell(1, length(curves_after_length_filter));
 if PARAMS.BREAK == 1
-    breakPoints = cell(1, size(curves_after_length_filter, 2));
-    for ci = 1:size(curves_after_length_filter, 2)
+    for ci = 1:length(curves_after_length_filter)
         curve = curves_after_length_filter{ci};
         TF = islocalmax(curvatures{ci}, 'MinSeparation',PARAMS.TAU_NUM_OF_PTS,...
             'MinProminence',max(min(maxk(curvatures{ci}, floor(0.1 * size(curvatures{ci}, 1)))), PARAMS.MIN_BREAK_CURVATURE));
         breakPoints{ci} = TF;
     end
-end
 
-if PARAMS.BREAK == 1
-     preProcessedCurves.points = {};
-     preProcessedCurves.curvatures = {};
-     preProcessedCurves.tangents = {};
-     for ci = 1:size(curves_after_length_filter, 2)
+    preProcessedCurves.points = {};
+    preProcessedCurves.curvatures = {};
+    preProcessedCurves.tangents = {};
+    for ci = 1:length(curves_after_length_filter)
         TF = breakPoints{ci};
         curve = curves_after_length_filter{ci};
         bp = find(TF ~= 0);
@@ -85,26 +96,23 @@ if PARAMS.BREAK == 1
             end
             p = bp(bpi) + 1;
         end
-     end
-
+    end
 else
     preProcessedCurves.points = curves_after_length_filter;
     preProcessedCurves.curvatures = curvatures;
     preProcessedCurves.tangents = tangents;
 end
 
-%> Save result
-if ~exist(fullfile(pwd, "tmp"), 'dir')
-    mkdir(fullfile(pwd, "tmp"))
-end
+%> Save the result as `preProcessedCurves`
 if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
     save(fullfile(pwd, 'tmp', 'curves_after_length_filter'), "curves_after_length_filter");
 end
-save(fullfile(pwd, 'tmp', 'preProcessedCurves'), "preProcessedCurves");
+save(fullfile(pwd, 'data', dataset, 'preProcessedCurves'), "preProcessedCurves");
+% save(fullfile(pwd, 'tmp', 'preProcessedCurves'), "preProcessedCurves");
 
-%> DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
+%> (v) DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
 if PARAMS.DEBUG == 1
-    for ci = 1:size(curves_after_length_filter, 2)
+    for ci = 1:length(curves_after_length_filter)
         curve = curves_after_length_filter{ci};
         if ci == PARAMS.DEBUG_COLORMAP_CURVE_INDEX
             figure;
@@ -136,8 +144,8 @@ end
 if PARAMS.PLOT == 1
     h1 = figure;
     ax = axes;
-    contour_RGB_color = unifrnd(0,1,[size(curves_after_length_filter, 2) 3]);
-    for ci = 1:size(curves_after_length_filter, 2)
+    contour_RGB_color = unifrnd(0,1,[length(curves_after_length_filter) 3]);
+    for ci = 1:length(curves_after_length_filter)
         figure(h1);
         curve = curves_after_length_filter{ci};
         plot3(ax, curve(:,1), curve(:,2), curve(:,3), 'Color', contour_RGB_color(ci,:), 'Marker', '.', 'MarkerSize', 5); 
@@ -186,7 +194,7 @@ if PARAMS.PLOT == 1
     if PARAMS.PLOT_3D_TANGENTS == 1
         h2 = figure;
         ax = axes;
-        for ci = 1:size(curves_after_length_filter, 2)
+        for ci = 1:length(curves_after_length_filter)
             figure(h2);
             curve = curves_after_length_filter{ci};
             viz_ci = 10:10:size(curve, 1);
