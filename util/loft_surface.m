@@ -19,7 +19,7 @@ for i = 1:divd
     
     %> calculate distance direction
     dis = norm(sp - ep);
-    dir = (ep - sp) ./ dis;
+    dir = (ep - sp) ./ (dis + eps);
     
     %> divide the connection line and store the divide points
     factor = dis / divd;

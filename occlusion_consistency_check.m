@@ -1,20 +1,29 @@
 clear;
 close all;
+
 tic;
 addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'util', 'TriangleRayIntersection'));
 addpath(fullfile(pwd, 'util', 'plyread/'));
 addpath(fullfile(pwd, 'util','rayBoxIntersection/'));
 PARAMS.TAU_ORIENTATION                     = pi/18; %> 5 deg
-PARAMS.TAU_DISTANCE                        = 3; %> 5 pixels
+PARAMS.TAU_DISTANCE                        = 3; %> in pixels
 PARAMS.TAU_DISTANCE_DIFF                   = 0.2; %> determine if there is an intersection
 PARAMS.GENERATE_MATCHES                    = 1;
 PARAMS.RAY_TRACING                         = 1;
 PARAMS.SURFACE_FILTERING                   = 1;
-PARAMS.SURFACE_FILTERING_THRESHOLD         = 300;
+PARAMS.SURFACE_FILTERING_THRESHOLD         = 200;   
 PARAMS.SAVE_MATCH_PLOT_2D                  = 0;
 PARAMS.SHOW_PLOT_MATCH                     = 0;
 PARAMS.PLOT_MATCH_VIEW                     = 10;
+
+%> Input image size
+PARAMS.IMG_ROWS                            = 800;
+PARAMS.IMG_COLS                            = 800;
+pic_size = [PARAMS.IMG_ROWS, PARAMS.IMG_COLS];
+
+dataset_name = "ABC-NEF";
+scene_name = "00000325";
 
 % load curves
 curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
@@ -28,7 +37,7 @@ pairs = load("./tmp/pairs_after_curvature_filter.mat").pairs_after_curvature_fil
 pixel_offset_row = reshape(pixel_offset_row, [], 1);
 pixel_offset_col = reshape(pixel_offset_col, [], 1);
 
-viewCnt = 0;
+viewCnt = 50;
 curvesProj_view = {};
 matchCurves_view = {};
 unmatchCurves_view = {};
@@ -36,23 +45,13 @@ edgeList_view = {};
 
 %> try to match curves and edges
 if PARAMS.GENERATE_MATCHES == 1
-    while 1
-        fname1 = fullfile(pwd, 'data','amsterdam-house-full', sprintf("%02d.projmatrix", viewCnt));
-        try
-            projMatrix = load(fname1);
-        catch
-            break
-        end
-        viewCnt = viewCnt + 1;
-    end
     parfor view = 1:viewCnt
-        fname1 = fullfile(pwd, 'data','amsterdam-house-full', sprintf("%02d.projmatrix", view-1));
-        fname2 = fullfile(pwd, 'data', 'TO_Edges_Amsterdam_House', sprintf("%02d.mat", view-1));
-        fname3 = fullfile(pwd, 'data', 'amsterdam-house-full', sprintf( "%02d.jpg", view-1));
+        %> Load projection matrix and 2D edges
+        fname1 = fullfile(pwd, 'data', dataset_name, scene_name, "projection_matrix", sprintf("%02d.projmatrix", view-1));
+        fname2 = fullfile(pwd, 'data', dataset_name, scene_name, 'edges', sprintf("edges_%02d.mat", view-1));
         projMatrix = load(fname1);
         edge = load(fname2).TO_edges;
-        %> get picture size
-        pic_size = size(imread(fname3), 1:2);
+        
         %> calculate R, T, camera center from projection matrix
         [K, RT] = Pdecomp(projMatrix);
         R_t = RT(1:3,1:3);
@@ -83,20 +82,20 @@ if PARAMS.GENERATE_MATCHES == 1
             curveImg{ci} = pointProj';
     
             
-            for pi = 1:size(pointProj, 2)
+            for pp = 1:size(pointProj, 2)
                 %> curve projection's position on the image
-                r = floor(pointProj(2, pi) + 1);
-                c = floor(pointProj(1, pi) + 1);
+                r = floor(pointProj(2, pp) + 1);
+                c = floor(pointProj(1, pp) + 1);
                 if r >= 1 && r <= pic_size(1) && c >= 1 && c <= pic_size(2)
                     %> save the curve projection's tangent, curve point 
                     % position and the distance between the camera center
                     % and the curve point. This is to bucketing the curve
                     % projection and only keep the closest curve point's 
                     % projection
-                    if isnan(curvesProj(r, c, 2)) || curvesProj(r, c, 2) > sqrt(sum(curveCam{ci}(pi, :).^2))
-                        curvesProj(r, c, 1) = tangentProj{ci}(pi);
-                        curvesProj(r, c, 2) = sqrt(sum(curveCam{ci}(pi, :).^2));
-                        curvesProj(r, c, 3:5) = curves{ci}(pi, :);
+                    if isnan(curvesProj(r, c, 2)) || curvesProj(r, c, 2) > sqrt(sum(curveCam{ci}(pp, :).^2))
+                        curvesProj(r, c, 1) = tangentProj{ci}(pp);
+                        curvesProj(r, c, 2) = sqrt(sum(curveCam{ci}(pp, :).^2));
+                        curvesProj(r, c, 3:5) = curves{ci}(pp, :);
                     end
                 end
             end
@@ -246,7 +245,7 @@ if PARAMS.RAY_TRACING  == 1
                 dis = matchCurves_view{v}(k, 9);
                 %> skip if the ray doesn't intersect with the surface
                 % bounding box 
-                interset = rayBoxIntersection(ct, dir, bbox_vmin, bbox_vmax)
+                interset = rayBoxIntersection(ct, dir, bbox_vmin, bbox_vmax);
                 if ~interset
                     continue;
                 end
@@ -285,10 +284,10 @@ end
 
 %> filtering the surface and copy the valid ones
 if PARAMS.SURFACE_FILTERING == 1
-    if exist(fullfile(pwd, 'tmp', 'filterd_surfaces'), 'dir')
-       rmdir((fullfile(pwd, 'tmp', 'filterd_surfaces')), 's')
+    if exist(fullfile(pwd, 'tmp', 'filtered_surfaces'), 'dir')
+       rmdir((fullfile(pwd, 'tmp', 'filtered_surfaces')), 's')
     end
-    mkdir(fullfile(pwd, 'tmp', 'filterd_surfaces'))
+    mkdir(fullfile(pwd, 'tmp', 'filtered_surfaces'))
     cnt = 0;
     for i = 1:size(pairs, 1)
         if surface_intersection_count(i) > PARAMS.SURFACE_FILTERING_THRESHOLD
@@ -305,7 +304,7 @@ if PARAMS.SURFACE_FILTERING == 1
             surfaceName = surfaceName + "reverse.ply";
         end
         
-        copyfile(fullfile(pwd, 'blender', 'output', surfaceName), fullfile(pwd, 'tmp', 'filterd_surfaces', surfaceName))
+        copyfile(fullfile(pwd, 'blender', 'output', surfaceName), fullfile(pwd, 'tmp', 'filtered_surfaces', surfaceName))
         cnt = cnt + 1;
     end
     fprintf("Surface number after filtering: %d\n", cnt);
