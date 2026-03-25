@@ -9,8 +9,6 @@ PARAMS.TAU_ALPHA                           = [0.2 1.3];
 PARAMS.PLOT                                = 0;
 PARAMS.HAS_GROUND_TRUTH                    = 0;
 
-curves_proximity_pairs = [];
-
 distances = [];
 
 %> calculate the distance between every two curves
