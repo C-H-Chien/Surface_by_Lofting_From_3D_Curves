@@ -10,7 +10,7 @@ media_storage = "/media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/";
 dataset_name = "ABC-NEF/";
 dataset_path = "/home/chchien/datasets/";
 object_tag = "00000325";
-save_curve_mat_file = 1;
+save_curve_mat_file = 0;
 
 ymlPath = fullfile(media_storage, dataset_path, dataset_name, object_tag, strcat(object_tag, ".yml"));
 data = yaml.loadFile(ymlPath);
@@ -91,10 +91,11 @@ else
 end
 
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
-
+num_of_colors = size(c, 1);
+rand_colors = rand(num_of_colors, 3);
 for i = 1:size(final_curves, 2)
     c = final_curves{i};
-    plot3(c(:, 1), c(:, 2), c(:, 3), 'Color', 'g', 'LineWidth', 2);
+    plot3(c(:, 1), c(:, 2), c(:, 3), 'Color', rand_colors(i,:), 'LineWidth', 2);
     hold on
 end
 hold off;
@@ -102,10 +103,12 @@ xlabel('x');
 ylabel('y');
 zlabel('z');
 axis equal;
-% axis off;
+ax = gca;
+ax.Clipping = "off";
 set(gcf,'color','w');
 
+
 if save_curve_mat_file == 1
-    curve_points = final_curves;
-    save(fullfile(media_storage, dataset_path, dataset_name, object_tag, "curves.mat"), "curve_points");
+    complete_curve_graph = final_curves;
+    save(strcat("curve_graph_ABC_NEF_", object_tag, ".mat"), "complete_curve_graph");
 end

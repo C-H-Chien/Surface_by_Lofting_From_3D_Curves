@@ -4,18 +4,23 @@ clear;
 import yaml.loadFile
 
 %> Set 1 to Write_to_Projmatrix_Files is writing projection matrices as a 
-%  series of .projmatrix files, if necessary. This is mainly used for multiview curve sketch
-Write_to_Projmatrix_Files = 0;
+%  series of .projmatrix files, if necessary.
+Write_to_Projmatrix_Files = 1;
+Visualize_3D_Curve_Projection = 0;
 
 %> Use object 00000325 as example, replace paths to other ABC dataset 
 %  objects for your own usage.
 media_storage = "/media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/";
-dataset_name = "ABC-NEF/";
+dataset_name = "ABC-NEF";
 dataset_path = strcat(media_storage, "/home/chchien/datasets/", dataset_name);
 object_tag_name = "00000325";
 
-%> curve points sampled from ABC dataset's parametrized representation
-final_curves = load(fullfile(dataset_path, object_tag_name, "curves.mat")).curve_points;
+%> curve points sampled from ABC dataset's parametrized representation.
+%  Only used to see the projection of the 3D curves onto the images.
+if Visualize_3D_Curve_Projection == 1
+    curve_graph_file_name = strcat("complete_curve_graph_", object_tag_name, ".mat");
+    final_curves = load(fullfile(pwd, "data", dataset_name, object_tag_name, curve_graph_file_name)).complete_curve_graph;
+end
 
 %> yml file containing matrices of all the views
 ymlPath = fullfile(dataset_path, object_tag_name, "transforms_train.json");
@@ -59,31 +64,35 @@ for i = 1:viewCnt
     % projMat(:, 1:3) = projMat(:, 1:3) .* factor;
     
     %> visualization. Curve points projection should overlap the edge of
-    %the object 
-    imshow(imread(imgPath));
-    hold on;
-    for j = 1:size(final_curves, 2)
-        c = final_curves{j};
-        c = [c'; ones(1, size(c, 1))];
-        proj = projMat * c;
-        proj = proj(1:2, :) ./ proj(3, :);
-        plot(proj(1, :)+1, proj(2, :)+1);
-        hold on
+    %  the object 
+    if Visualize_3D_Curve_Projection == 1
+        imshow(imread(imgPath));
+        hold on;
+        for j = 1:size(final_curves, 2)
+            c = final_curves{j};
+            c = [c'; ones(1, size(c, 1))];
+            proj = projMat * c;
+            proj = proj(1:2, :) ./ proj(3, :);
+            plot(proj(1, :)+1, proj(2, :)+1);
+            hold on
+        end
+        hold off;
     end
-    hold off;
 
     projection_matrix_by_view{end + 1} = projMat;
 end
 
-%> save the matrix converting result
-% save_path = fullfile(mfiledir, "projection.mat");
-% save(save_path, "projection_matrix_by_view");
-
+%> save the matrix converting results
 if Write_to_Projmatrix_Files == 1
+    write_folder_path = fullfile(pwd, "data", dataset_name, object_tag_name);
+    if ~exist(fullfile(write_folder_path, 'projection_matrix'), 'dir')
+        mkdir(fullfile(write_folder_path, 'projection_matrix'))
+    end
     for i = 1:length(projection_matrix_by_view)
         proj_matrix = projection_matrix_by_view{i};
-        path = fullfile(mfiledir, "projmatrix", sprintf("%d_colors.projmatrix", i - 1));
-        writematrix(proj_matrix, path, "FileType", "text", "Delimiter", " ");
+        file_name = strcat(sprintf('%02d', double(i-1)), ".projmatrix");
+        file_write_path = fullfile(write_folder_path, "projection_matrix", file_name);
+        writematrix(proj_matrix, file_write_path, "FileType", "text", "Delimiter", " ");
     end
 end
 

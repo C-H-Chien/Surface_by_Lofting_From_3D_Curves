@@ -1,4 +1,3 @@
-
 %> Third-Order Edge Detector Credit:
 %> Paper: Kimia, Benjamin B., Xiaoyan Li, Yuliang Guo, and Amir Tamrakar. 
 %         "Differential geometry in edge detection: accurate estimation of 
@@ -10,17 +9,18 @@
 
 % mfiledir = fileparts(mfilename('fullpath'));
 Dataset_Path = '/media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/home/chchien/datasets/';
-Dataset_Name = 'DTU/';      %> ABC-NEF, DTU
-Scene_Name = 'scan105/';          %> 00009779
-Image_Folder_Name = 'color/';   %> train_img, color
+Dataset_Name = 'ABC-NEF/';      %> ABC-NEF, DTU
+Scene_Name = '00000325/';          %> 00009779
+Image_Folder_Name = 'train_img/';   %> train_img, color
 postfix = '.png';               %> .png for ABC-NEF, .jpg for Replica
 All_Images = dir(strcat(Dataset_Path, Dataset_Name, Scene_Name, Image_Folder_Name, '*', postfix));
 Full_Accessible_Path = [Dataset_Path, Dataset_Name, Scene_Name, Image_Folder_Name];
 
-% /media/chchien/843557f5-9293-49aa-8fb8-c1fc6c72f7ea/home/chchien/datasets/Replica/color
+Save_TO_Edges_as_Files  = 1;
+file_extension          = ".mat";
 
 %> Settings for the Third-Order Edge Detector
-thresh = 8;
+thresh = 1;
 sigma = 1;
 n = 1;
 format long;
@@ -39,14 +39,29 @@ for i = 1:size(All_Images, 1)
     yy = find(TO_edges(:,1) < 10 | TO_edges(:,2) > size(img_,1)-10 | TO_edges(:,2) < 10 | TO_edges(:,1) > size(img_,2)-10);
     TO_edges(yy,:) = [];
 
+    %> Omit the last column (which is the gradient magnitude and we don't need it)
+    TO_edges(:, end) = [];
+
     %> Save as .edg file
     % save_edg([Full_Accessible_Path, TO_Edges_Name, '.edg'], TO_edges, [size(img_, 1), size(img_, 2)]);
 
     %> Save as .txt file
-    % img_index               = extractBefore(string(All_Images(i).name), "_");
-    % output_edges_file_txt   = strcat("Edge_", img_index, "_t", string(thresh), ".txt");
-    % output_file_path        = fullfile(Dataset_Path, Dataset_Name, Scene_Name, Image_Folder_Name, output_edges_file_txt);
-    % writematrix(TO_edges, output_file_path, 'Delimiter', 'tab');
+    if Save_TO_Edges_as_Files == 1
+        %> create a folder `edges`
+        write_folder_path = fullfile(pwd, "data", Dataset_Name, Scene_Name);
+        if ~exist(fullfile(write_folder_path, 'edges'), 'dir')
+            mkdir(fullfile(write_folder_path, 'edges'))
+        end
+        img_index               = extractBefore(string(All_Images(i).name), "_");
+        img_index_padded_str    = sprintf('%02d', double(img_index));
+        output_edges_file_name  = strcat("edges_", img_index_padded_str, file_extension);
+        file_save_path          = fullfile(write_folder_path, "edges", output_edges_file_name);
+        if file_extension == ".mat"
+            save(file_save_path, "TO_edges");
+        elseif file_extension == ".txt"
+            writematrix(TO_edges, file_save_path, 'Delimiter', 'tab');
+        end
+    end
     
     %> Monitor the progress
     fprintf(". ");
