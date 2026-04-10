@@ -1,0 +1,61 @@
+# ============================================================
+#  config.yaml  -  Unified parameter file for run_pipeline.m
+#
+#  Edit this file to change any setting. No .m file changes needed.
+# ============================================================
+
+# ---- Dataset -----------------------------------------------
+dataset:
+  name: "ABC-NEF"         # folder name under data/
+  scene: "auto"           # auto picks 00000325 if present, else first scene folder
+  curve_graph_file: "auto"  # auto picks curve_graph_ABC_NEF_<scene>.mat or first curve_graph*.mat
+  num_views: 0            # auto-count from projection_matrix/*.projmatrix (0 means auto)
+
+# ---- Step 1: Pre-process 3D Curves -------------------------
+#  For clean/synthetic curves (e.g. ABC-NEF): set smoothing,
+#  apply_length_constraints and break_curves all to 0.
+#  For noisy real data (e.g. Amsterdam House): enable them.
+preprocess:
+  smoothing: 0                        # 0=off  1=on
+  smoothing_window: 500
+  apply_length_constraints: 0         # 0=off  1=on
+  tau_length: 0.15
+  tau_num_of_pts: 500
+  gaussian_derivative_sigma: 10
+  gaussian_derivative_data_range: 20
+  break_curves: 0                     # 0=off  1=on  (key avoids reserved word)
+  min_break_curvature: 0.0025
+  plot: 1
+  debug: 1
+  debug_colormap_curve_index: 10
+  plot_3d_tangents: 0
+  save_curves_after_length_constraint: 0
+
+# ---- Step 2: Proximity Pairing -----------------------------
+proximity:
+  tau_alpha_min: 0.2
+  tau_alpha_max: 1.3
+  plot: 0
+  has_ground_truth: 0
+
+# ---- Step 3: Gaussian Curvature Filter ---------------------
+gaussian_filter:
+  tau_gaussian: 0.35
+  plot: 0
+  has_ground_truth: 1
+
+# ---- Step 4: Occlusion Consistency Check -------------------
+#  surface_filtering_threshold: 200 for ABC-NEF, 500 for Amsterdam House
+occlusion:
+  tau_orientation: 0.17453            # pi/18 ~ 5 degrees in radians
+  tau_distance: 3                     # pixels
+  tau_distance_diff: 0.2
+  generate_matches: 1
+  ray_tracing: 1
+  surface_filtering: 1
+  surface_filtering_threshold: 200
+  save_match_plot_2d: 0
+  show_plot_match: 0
+  plot_match_view: 10
+  img_rows: 800
+  img_cols: 800

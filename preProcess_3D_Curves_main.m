@@ -34,7 +34,9 @@ PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 %> (i) Smooth input curves
-if PARAMS.SMOOTHING == 1
+
+
+ if PARAMS.SMOOTHING == 1
     smoothed_curves = cell(length(input_curves), 2);
     for ci = 1:length(input_curves)
         c = input_curves{ci};
@@ -42,15 +44,21 @@ if PARAMS.SMOOTHING == 1
     end
 else
     smoothed_curves = input_curves;
-end
+end 
+
+
 
 %> (ii) Filter the curves by length constraint using minimal length 
 %  constraint and minimal number of curve points
+
+
 if PARAMS.APPLY_LENGTH_CONSTRAINTS == 1
     curves_after_length_filter = filter_by_length(smoothed_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
 else
     curves_after_length_filter = smoothed_curves;
-end
+end 
+
+
 
 %> (iii) Compute the tangents and curvatures at each point on each curve
 tangents = cell(1, size(curves_after_length_filter, 2));
