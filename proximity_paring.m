@@ -3,7 +3,7 @@ close all;
 addpath(fullfile(pwd, 'util'));
 
 % pair proximity
-input_curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
+input_curves = load(fullfile(pwd, 'data','ABC-NEF', 'preProcessedCurves.mat')).preProcessedCurves.points;
 
 PARAMS.TAU_ALPHA                           = [0.2 1.3];
 PARAMS.PLOT                                = 0;
