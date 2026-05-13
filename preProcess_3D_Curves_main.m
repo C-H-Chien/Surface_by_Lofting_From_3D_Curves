@@ -8,6 +8,7 @@ rng(0);
 dataset = "ABC-NEF";
 % input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_amsterdam.mat')).complete_curve_graph';
 input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_ABC_NEF_00000325.mat')).complete_curve_graph;
+nCurves = numel(input_curves);
 
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hyper-parameters >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 %> For a clean and perfect 3D curve network, e.g., GT curves from the ABC-NEF dataset, 
@@ -34,36 +35,29 @@ PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 %> (i) Smooth input curves
-
-
- if PARAMS.SMOOTHING == 1
-    smoothed_curves = cell(length(input_curves), 2);
-    for ci = 1:length(input_curves)
+if PARAMS.SMOOTHING == 1
+    smoothed_curves = cell(1, nCurves);
+    for ci = 1:nCurves
         c = input_curves{ci};
         smoothed_curves{ci} = smoothdata(c, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
     end
 else
     smoothed_curves = input_curves;
-end 
-
-
+end
 
 %> (ii) Filter the curves by length constraint using minimal length 
 %  constraint and minimal number of curve points
-
-
 if PARAMS.APPLY_LENGTH_CONSTRAINTS == 1
     curves_after_length_filter = filter_by_length(smoothed_curves, PARAMS.TAU_LENGTH, PARAMS.TAU_NUM_OF_PTS);
 else
     curves_after_length_filter = smoothed_curves;
-end 
-
-
+end
 
 %> (iii) Compute the tangents and curvatures at each point on each curve
-tangents = cell(1, size(curves_after_length_filter, 2));
-curvatures = cell(1, size(curves_after_length_filter, 2));
-for ci = 1:length(curves_after_length_filter)
+nFilteredCurves = numel(curves_after_length_filter);
+tangents = cell(1, nFilteredCurves);
+curvatures = cell(1, nFilteredCurves);
+for ci = 1:nFilteredCurves
     curve = curves_after_length_filter{ci};
     %> Compute the unit 3D tangent vectors and the curvatures
     [T, k] = get_UnitTangents_Curvatures(curve(:,1), curve(:,2), curve(:,3), PARAMS);
@@ -72,10 +66,9 @@ for ci = 1:length(curves_after_length_filter)
 end
 
 %> (iv) Break the curves at points with high curvature
-breakPoints = cell(1, length(curves_after_length_filter));
+breakPoints = cell(1, nFilteredCurves);
 if PARAMS.BREAK == 1
-    for ci = 1:length(curves_after_length_filter)
-        curve = curves_after_length_filter{ci};
+    for ci = 1:nFilteredCurves
         TF = islocalmax(curvatures{ci}, 'MinSeparation',PARAMS.TAU_NUM_OF_PTS,...
             'MinProminence',max(min(maxk(curvatures{ci}, floor(0.1 * size(curvatures{ci}, 1)))), PARAMS.MIN_BREAK_CURVATURE));
         breakPoints{ci} = TF;
@@ -84,7 +77,7 @@ if PARAMS.BREAK == 1
     preProcessedCurves.points = {};
     preProcessedCurves.curvatures = {};
     preProcessedCurves.tangents = {};
-    for ci = 1:length(curves_after_length_filter)
+    for ci = 1:nFilteredCurves
         TF = breakPoints{ci};
         curve = curves_after_length_filter{ci};
         bp = find(TF ~= 0);
@@ -120,31 +113,30 @@ save(fullfile(pwd, 'data', dataset, 'preProcessedCurves'), "preProcessedCurves")
 
 %> (v) DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
 if PARAMS.DEBUG == 1
-    for ci = 1:length(curves_after_length_filter)
+    ci = PARAMS.DEBUG_COLORMAP_CURVE_INDEX;
+    if ci >= 1 && ci <= nFilteredCurves
         curve = curves_after_length_filter{ci};
-        if ci == PARAMS.DEBUG_COLORMAP_CURVE_INDEX
-            figure;
-            h = scatter3(curve(:,1), curve(:,2), curve(:,3), 3, curvatures{ci});
-            hold on;
-            if PARAMS.BREAK == 1
-                bp = curve(breakPoints{ci} ~= 0, :);
-                scatter3(bp(:, 1), bp(:, 2), bp(:, 3), 100, "red", "filled");
-            end
-            h.MarkerFaceColor = 'flat';
-            colormap(jet);
-            colorbar;
-            axis equal;
-            set(gca, 'xlim', [min(curve(:,1))-0.2, max(curve(:,1))+0.2], ...
-                     'ylim', [min(curve(:,2))-0.2, max(curve(:,2))+0.2], ...
-                     'zlim', [min(curve(:,3))-0.2, max(curve(:,3))+0.2]);
-            xlabel(gca, "x"); ylabel(gca, "y"); zlabel(gca, "z");
-            set(gcf,'color','w');
-            figure;
-            plot(curvatures{ci});
-            hold on;
-            scatter(find(breakPoints{ci} == 1), curvatures{ci}(breakPoints{ci} == 1), 100, 'red', 'filled');
-            hold off;
+        figure;
+        h = scatter3(curve(:,1), curve(:,2), curve(:,3), 3, curvatures{ci});
+        hold on;
+        if PARAMS.BREAK == 1
+            bp = curve(breakPoints{ci} ~= 0, :);
+            scatter3(bp(:, 1), bp(:, 2), bp(:, 3), 100, "red", "filled");
         end
+        h.MarkerFaceColor = 'flat';
+        colormap(jet);
+        colorbar;
+        axis equal;
+        set(gca, 'xlim', [min(curve(:,1))-0.2, max(curve(:,1))+0.2], ...
+                 'ylim', [min(curve(:,2))-0.2, max(curve(:,2))+0.2], ...
+                 'zlim', [min(curve(:,3))-0.2, max(curve(:,3))+0.2]);
+        xlabel(gca, "x"); ylabel(gca, "y"); zlabel(gca, "z");
+        set(gcf,'color','w');
+        figure;
+        plot(curvatures{ci});
+        hold on;
+        scatter(find(breakPoints{ci} == 1), curvatures{ci}(breakPoints{ci} == 1), 100, 'red', 'filled');
+        hold off;
     end
 end
 

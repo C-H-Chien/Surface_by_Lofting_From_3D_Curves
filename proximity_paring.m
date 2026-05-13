@@ -9,15 +9,19 @@ PARAMS.TAU_ALPHA                           = [0.2 1.3];
 PARAMS.PLOT                                = 0;
 PARAMS.HAS_GROUND_TRUTH                    = 0;
 
-distances = [];
+nCurves = numel(input_curves);
+nPairs = nCurves * (nCurves - 1) / 2;
+distances = zeros(nPairs, 3);
+pairIdx = 1;
 
 %> calculate the distance between every two curves
-for ci = 1:size(input_curves, 2)
-    for cj = ci + 1:size(input_curves, 2)
+for ci = 1:nCurves
+    for cj = ci + 1:nCurves
         c1 = input_curves{ci};
         c2 = input_curves{cj};
         dis = curve_to_curve_distance_estimation(c1, c2, 20);
-        distances = [distances; [ci cj dis]];
+        distances(pairIdx, :) = [ci cj dis];
+        pairIdx = pairIdx + 1;
     end
 end
 
@@ -32,15 +36,10 @@ if PARAMS.PLOT
     hold on;
     if PARAMS.HAS_GROUND_TRUTH
         manual_pick = load(fullfile(pwd, 'data', 'manual_pick.mat')).manual_pick;
-        dis = [];
-        for i = 1:size(curves_proximity_pairs, 1)
-            for j = 1:size(manual_pick, 1)
-                if curves_proximity_pairs(i, 1) == manual_pick(j, 1) && curves_proximity_pairs(i, 2) == manual_pick(j, 2)
-                    dis = [dis; [manual_pick(j, 1) manual_pick(j, 2) curves_proximity_pairs(i, 3)]];
-                end
-            end
+        hitMask = ismember(curves_proximity_pairs(:, 1:2), manual_pick(:, 1:2), 'rows');
+        if any(hitMask)
+            histogram(curves_proximity_pairs(hitMask, 3), "EdgeColor","red", "NumBins",10);
         end
-        histogram(dis(:,3), "EdgeColor","red", "NumBins",10);
     end
     hold off;
 end
