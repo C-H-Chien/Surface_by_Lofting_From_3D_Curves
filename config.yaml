@@ -7,14 +7,9 @@
 # ---- Dataset -----------------------------------------------
 dataset:
   name: "ABC-NEF"         # folder name under data/
-<<<<<<< HEAD
-  scene: "auto"           # auto picks 00000325 if present, else first scene folder
-  curve_graph_file: "auto"  # auto picks curve_graph_ABC_NEF_<scene>.mat or first curve_graph*.mat
-  num_views: 0            # auto-count from projection_matrix/*.projmatrix (0 means auto)
-=======
   scene: "00000325"       # scene / object sub-folder
-  num_views: 50           # number of camera views
->>>>>>> 1f5b822 (Reorganize pipeline with unified config and in-memory execution)
+  curve_graph_file: "auto"  # auto selects matching curve graph file for the scene
+  num_views: 0            # auto-count from projection_matrix/*.projmatrix (0 means auto)
 
 # ---- Step 1: Pre-process 3D Curves -------------------------
 #  For clean/synthetic curves (e.g. ABC-NEF): set smoothing,
@@ -45,11 +40,7 @@ proximity:
 
 # ---- Step 3: Gaussian Curvature Filter ---------------------
 gaussian_filter:
-<<<<<<< HEAD
-  tau_gaussian: 0.35
-=======
   tau_gaussian: 0.4
->>>>>>> 1f5b822 (Reorganize pipeline with unified config and in-memory execution)
   plot: 0
   has_ground_truth: 1
 
@@ -62,11 +53,7 @@ occlusion:
   generate_matches: 1
   ray_tracing: 1
   surface_filtering: 1
-<<<<<<< HEAD
-  surface_filtering_threshold: 200
-=======
   surface_filtering_threshold: 220
->>>>>>> 1f5b822 (Reorganize pipeline with unified config and in-memory execution)
   save_match_plot_2d: 0
   show_plot_match: 0
   plot_match_view: 10
