@@ -54,7 +54,7 @@ function batchSummary = run_batch_pipeline(sceneList, varargin)
         assignin('base', 'RUN_PIPELINE_CFG_OVERRIDE', cfg);
 
         try
-            run('run_pipeline.m');
+            run_pipeline;
             current = collect_latest_metrics();
 
             results(i).scene = scene;

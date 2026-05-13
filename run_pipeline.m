@@ -1,4 +1,4 @@
-clear;
+function run_pipeline()
 close all;
 
 % Unified lofting pipeline:
@@ -72,6 +72,8 @@ if strcmp(pipelineStatus, "failed")
 end
 
 disp("Finished");
+
+end
 
 function cfg = default_config()
     cfg.dataset.name = "ABC-NEF";
@@ -487,22 +489,22 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
             matchCount = 0;
 
             for idx = 1:nValid
-                i = validRows(idx);
-                j = validCols(idx);
+                rowIdx = validRows(idx);
+                colIdx = validCols(idx);
 
-                dir = reshape(curvesProj(i, j, 3:5), 1, []) - C_t';
+                dir = reshape(curvesProj(rowIdx, colIdx, 3:5), 1, []) - C_t';
                 dirNorm = norm(dir);
                 if dirNorm <= eps
                     continue;
                 end
 
-                record = [pic_size(1) - i, j-1, C_t', dir ./ dirNorm, curvesProj(i, j, 2)];
+                record = [pic_size(1) - rowIdx, colIdx-1, C_t', dir ./ dirNorm, curvesProj(rowIdx, colIdx, 2)];
 
-                if isnan(edge_bucket(i, j))
+                if isnan(edge_bucket(rowIdx, colIdx))
                     continue;
                 end
 
-                diff = angdiff(curvesProj(i, j, 1), edge_bucket(i, j));
+                diff = angdiff(curvesProj(rowIdx, colIdx, 1), edge_bucket(rowIdx, colIdx));
                 diff = abs(diff);
                 diff = min(diff, pi - diff);
                 if diff < PARAMS.TAU_ORIENTATION

@@ -18,7 +18,7 @@ function report = regression_check(varargin)
     mode = string(opts.Mode);
 
     if opts.RunPipeline
-        run('run_pipeline.m');
+        run_pipeline;
     end
 
     current = collect_current_metrics();
