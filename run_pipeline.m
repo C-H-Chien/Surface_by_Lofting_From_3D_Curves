@@ -32,6 +32,12 @@ if ~exist(fullfile(pwd, 'tmp'), 'dir')
     mkdir(fullfile(pwd, 'tmp'));
 end
 
+if cfg.run_parallel_for
+  cfg.parforArg = Inf;
+else
+  cfg.parforArg = 0;
+end
+
 tic;
 disp("Start pre-process");
 preProcessedCurves = step_preprocess(cfg);
@@ -56,6 +62,8 @@ function cfg = default_config()
     cfg.dataset.scene = "00000325";
     cfg.dataset.curve_graph_file = "curve_graph_ABC_NEF_00000325.mat";
     cfg.dataset.num_views = 50;
+
+    cfg.run_parallel_for = 0;
 
     cfg.preprocess.smoothing = 0;
     cfg.preprocess.smoothing_window = 500;
@@ -118,6 +126,10 @@ function cfg = resolve_dataset_defaults(cfg)
         else
             error('No scene folder found under data/%s.', string(cfg.dataset.name));
         end
+    end
+
+    if ~isfield(cfg, 'run_parallel_for')
+        cfg.run_parallel_for = 0;
     end
 
     if (~isfield(cfg.dataset, 'curve_graph_file')) || strcmpi(string(cfg.dataset.curve_graph_file), "auto") || strlength(string(cfg.dataset.curve_graph_file)) == 0
@@ -280,7 +292,8 @@ function step_loft(input_curves, pairs)
     end
     mkdir(fullfile(pwd, 'blender', 'output'));
 
-    parfor i = 1:size(pairs, 1)
+    % parfor i = 1:size(pairs, 1)
+    for i = 1:size(pairs, 1)
         n1 = pairs(i, 1);
         n2 = pairs(i, 2);
         c1 = input_curves{n1};
@@ -407,7 +420,8 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     edgeList_view = {};
 
     if PARAMS.GENERATE_MATCHES == 1
-        parfor view = 1:viewCnt
+        % parfor view = 1:viewCnt
+        for view = 1:viewCnt
             fname1 = fullfile(pwd, 'data', dataset_name, scene_name, "projection_matrix", sprintf("%02d.projmatrix", view-1));
             fname2 = fullfile(pwd, 'data', dataset_name, scene_name, 'edges', sprintf("edges_%02d.mat", view-1));
             projMatrix = load(fname1);
@@ -530,7 +544,8 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
 
     if PARAMS.RAY_TRACING  == 1
         surface_intersection_count = zeros(size(pairs, 1), 1);
-        parfor i = 1:size(pairs, 1)
+        % parfor i = 1:size(pairs, 1)
+        for i = 1:size(pairs, 1)
             c1 = pairs(i, 1);
             c2 = pairs(i, 2);
 

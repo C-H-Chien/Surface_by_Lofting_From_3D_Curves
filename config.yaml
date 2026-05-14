@@ -10,6 +10,10 @@ dataset:
   scene: "auto"           # auto picks 00000325 if present, else first scene folder
   curve_graph_file: "auto"  # auto picks curve_graph_ABC_NEF_<scene>.mat or first curve_graph*.mat
   num_views: 0            # auto-count from projection_matrix/*.projmatrix (0 means auto)
+  
+# ---- Basic Processing Preferance ---------------------------
+run_preferance:
+   run_parallel_for: 0
 
 # ---- Step 1: Pre-process 3D Curves -------------------------
 #  For clean/synthetic curves (e.g. ABC-NEF): set smoothing,
