@@ -1,4 +1,4 @@
-clear;
+function run_pipeline()
 close all;
 
 % Unified lofting pipeline:
@@ -20,16 +20,19 @@ addpath(fullfile(pwd, 'util', 'rayBoxIntersection'));
 addpath(fullfile(pwd, 'tools', 'projection'));
 
 cfgPath = fullfile(pwd, 'config.yaml');
-if exist(cfgPath, 'file')
+if evalin('base', 'exist(''RUN_PIPELINE_CFG_OVERRIDE'', ''var'')') == 1
+    cfg = evalin('base', 'RUN_PIPELINE_CFG_OVERRIDE');
+elseif evalin('base', 'exist(''RUN_PIPELINE_CFG_PATH'', ''var'')') == 1
+    cfgPathOverride = string(evalin('base', 'RUN_PIPELINE_CFG_PATH'));
+    if exist(cfgPathOverride, 'file')
+        cfg = yaml.loadFile(cfgPathOverride);
+    else
+        error('RUN_PIPELINE_CFG_PATH does not exist: %s', cfgPathOverride);
+    end
+elseif exist(cfgPath, 'file')
     cfg = yaml.loadFile(cfgPath);
 else
     cfg = default_config();
-end
-cfg = resolve_dataset_defaults(cfg);
-rng(0);
-
-if ~exist(fullfile(pwd, 'tmp'), 'dir')
-    mkdir(fullfile(pwd, 'tmp'));
 end
 
 if cfg.run_parallel_for
@@ -38,24 +41,46 @@ else
   cfg.parforArg = 0;
 end
 
-tic;
-disp("Start pre-process");
-preProcessedCurves = step_preprocess(cfg);
+cfg = resolve_dataset_defaults(cfg);
+rng(0);
 
-disp("Start proximity_paring");
-curves_proximity_pairs = step_proximity_paring(cfg, preProcessedCurves.points);
+if ~exist(fullfile(pwd, 'tmp'), 'dir')
+    mkdir(fullfile(pwd, 'tmp'));
+end
 
-disp("Start lofting");
-step_loft(preProcessedCurves.points, curves_proximity_pairs);
+[runCtx, logFile] = init_run_context(cfg);
+log_message(logFile, "INFO", "Pipeline initialized.");
+validate_runtime_inputs(cfg, logFile);
 
-disp("Start gaussian_curvature_filter");
-pairs_after_curvature_filter = step_gaussian_filter(cfg, curves_proximity_pairs);
+pipelineTimer = tic;
+failedException = [];
+stageReports = struct();
+pipelineStatus = "success";
+pipelineError = "";
 
-disp("Start occlusion_consistency_check");
-step_occlusion_check(cfg, preProcessedCurves, pairs_after_curvature_filter);
+try
+    [preProcessedCurves, stageReports.preprocess] = execute_stage("pre-process", @() step_preprocess(cfg), logFile);
+    [curves_proximity_pairs, stageReports.proximity_paring] = execute_stage("proximity_paring", @() step_proximity_paring(cfg, preProcessedCurves.points), logFile);
+    [~, stageReports.lofting] = execute_stage("lofting", @() run_step_loft(preProcessedCurves.points, curves_proximity_pairs), logFile);
+    [pairs_after_curvature_filter, stageReports.gaussian_curvature_filter] = execute_stage("gaussian_curvature_filter", @() step_gaussian_filter(cfg, curves_proximity_pairs), logFile);
+    [~, stageReports.occlusion_consistency_check] = execute_stage("occlusion_consistency_check", @() run_step_occlusion_check(cfg, preProcessedCurves, pairs_after_curvature_filter), logFile);
+catch ME
+    failedException = ME;
+    pipelineStatus = "failed";
+    pipelineError = string(getReport(ME, 'extended', 'hyperlinks', 'off'));
+    log_message(logFile, "ERROR", "Pipeline failed: " + string(ME.message));
+end
 
-toc;
+totalSeconds = toc(pipelineTimer);
+write_run_report(runCtx, cfg, stageReports, pipelineStatus, totalSeconds, pipelineError, logFile);
+
+if strcmp(pipelineStatus, "failed")
+    rethrow(failedException);
+end
+
 disp("Finished");
+
+end
 
 function cfg = default_config()
     cfg.dataset.name = "ABC-NEF";
@@ -183,7 +208,7 @@ function preProcessedCurves = step_preprocess(cfg)
     PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = double(cfg.preprocess.save_curves_after_length_constraint);
 
     if PARAMS.SMOOTHING == 1
-        smoothed_curves = cell(length(input_curves), 2);
+        smoothed_curves = cell(1, length(input_curves));
         for ci = 1:length(input_curves)
             c = input_curves{ci};
             smoothed_curves{ci} = smoothdata(c, "gaussian", PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA);
@@ -210,7 +235,6 @@ function preProcessedCurves = step_preprocess(cfg)
     breakPoints = cell(1, length(curves_after_length_filter));
     if PARAMS.BREAK == 1
         for ci = 1:length(curves_after_length_filter)
-            curve = curves_after_length_filter{ci};
             TF = islocalmax(curvatures{ci}, 'MinSeparation',PARAMS.TAU_NUM_OF_PTS,...
                 'MinProminence',max(min(maxk(curvatures{ci}, floor(0.1 * size(curvatures{ci}, 1)))), PARAMS.MIN_BREAK_CURVATURE));
             breakPoints{ci} = TF;
@@ -253,13 +277,18 @@ function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
     PARAMS.PLOT             = double(cfg.proximity.plot);
     PARAMS.HAS_GROUND_TRUTH = double(cfg.proximity.has_ground_truth);
 
-    distances = [];
-    for ci = 1:size(input_curves, 2)
-        for cj = ci + 1:size(input_curves, 2)
+    nCurves = numel(input_curves);
+    nPairs = nCurves * (nCurves - 1) / 2;
+    distances = zeros(nPairs, 3);
+    pairIdx = 1;
+    
+    for ci = 1:nCurves
+        for cj = ci + 1:nCurves
             c1 = input_curves{ci};
             c2 = input_curves{cj};
-            dis = curve_to_curve_distance_estimation(c1, c2, 20);
-            distances = [distances; [ci cj dis]];
+            dis = curve_to_curve_distance_estimation(c1, c2, 50);
+            distances(pairIdx, :) = [ci cj dis];
+            pairIdx = pairIdx + 1;
         end
     end
 
@@ -269,15 +298,10 @@ function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
         hold on;
         if PARAMS.HAS_GROUND_TRUTH
             manual_pick = load(fullfile(pwd, 'data', 'manual_pick.mat')).manual_pick;
-            dis = [];
-            for i = 1:size(curves_proximity_pairs, 1)
-                for j = 1:size(manual_pick, 1)
-                    if curves_proximity_pairs(i, 1) == manual_pick(j, 1) && curves_proximity_pairs(i, 2) == manual_pick(j, 2)
-                        dis = [dis; [manual_pick(j, 1) manual_pick(j, 2) curves_proximity_pairs(i, 3)]];
-                    end
-                end
+            hitMask = ismember(curves_proximity_pairs(:, 1:2), manual_pick(:, 1:2), 'rows');
+            if any(hitMask)
+                histogram(curves_proximity_pairs(hitMask, 3), "EdgeColor","red", "NumBins",10);
             end
-            histogram(dis(:,3), "EdgeColor","red", "NumBins",10);
         end
         hold off;
     end
@@ -302,11 +326,11 @@ function step_loft(input_curves, pairs)
         fname1 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_normal.ply");
         fname2 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_reverse.ply");
 
-        [vertices, faces] = loft_surface(c1, c2, 0, 10);
+        [vertices, faces] = loft_surface(c1, c2, 0, 30);
         mesh = surfaceMesh(vertices,faces);
         writeSurfaceMesh(mesh,fname1);
 
-        [vertices, faces] = loft_surface(c1, c2, 1, 10);
+        [vertices, faces] = loft_surface(c1, c2, 1, 30);
         mesh = surfaceMesh(vertices,faces);
         writeSurfaceMesh(mesh,fname2);
     end
@@ -317,9 +341,10 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
     PARAMS.PLOT             = double(cfg.gaussian_filter.plot);
     PARAMS.HAS_GROUND_TRUTH = double(cfg.gaussian_filter.has_ground_truth);
 
-    pairs_after_curvature_filter = [];
-    res = [];
-    parfor i = 1:size(pairs, 1)
+    nPairs = size(pairs, 1);
+    pairs_after_curvature_filter = -ones(nPairs, 5);
+    res = nan(nPairs, 4);
+    parfor i = 1:nPairs
         n1 = pairs(i, 1);
         n2 = pairs(i, 2);
         fname1 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_normal.ply");
@@ -330,14 +355,18 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
         try
             [tri,pts] = plyread(fname1,'tri');
             gc1 = mean(curvatures(pts(:, 1), pts(:, 2), pts(:, 3), double(tri)));
+        catch ME
+            warning('Failed curvature read for %s: %s', fname1, ME.message);
         end
 
         try
             [tri,pts] = plyread(fname2,'tri');
             gc2 = mean(curvatures(pts(:, 1), pts(:, 2), pts(:, 3), double(tri)));
+        catch ME
+            warning('Failed curvature read for %s: %s', fname2, ME.message);
         end
 
-        res = [res; [n1 n2 gc1 gc2]];
+        res(i, :) = [n1 n2 gc1 gc2];
 
         if isnan(gc1) && (~isnan(gc2)) && abs(gc2) < PARAMS.TAU_GAUSSIAN
             pairs_after_curvature_filter(i, :) = [n1 n2 0 gc1 gc2];
@@ -374,15 +403,11 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
         hold on;
         if PARAMS.HAS_GROUND_TRUTH
             manual_pick = load(fullfile(pwd, 'data', 'manual_pick.mat')).manual_pick;
-            v = [];
-            for i = 1:size(res, 1)
-                for j = 1:size(manual_pick, 1)
-                    if res(i, 1) == manual_pick(j, 1) && res(i, 2) == manual_pick(j, 2)
-                        v = [v; min(abs(res(i, 3)), abs(res(i, 4)))];
-                    end
-                end
+            hitMask = ismember(res(:, 1:2), manual_pick(:, 1:2), 'rows');
+            if any(hitMask)
+                v = min(abs(res(hitMask, 3:4)), [], 2);
+                histogram(v, "NumBins",40, "FaceColor",'red');
             end
-            histogram(v, "NumBins",40, "FaceColor",'red');
         end
         hold off;
     end
@@ -414,9 +439,7 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     pixel_offset_row = reshape(pixel_offset_row, [], 1);
     pixel_offset_col = reshape(pixel_offset_col, [], 1);
 
-    curvesProj_view = {};
     matchCurves_view = {};
-    unmatchCurves_view = {};
     edgeList_view = {};
 
     if PARAMS.GENERATE_MATCHES == 1
@@ -474,35 +497,40 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
                 end
             end
 
-            match = [];
-            unmatch = [];
-            for i = 1:pic_size(1)
-                for j = 1:pic_size(2)
-                    if isnan(curvesProj(i, j))
-                        continue;
-                    end
-                    dir = reshape(curvesProj(i, j, 3:5), 1, []) - C_t';
-                    record = [pic_size(1) - i, j-1, C_t', dir ./ norm(dir), curvesProj(i, j, 2)];
+            validMask = ~isnan(curvesProj(:, :, 2));
+            [validRows, validCols] = find(validMask);
+            nValid = numel(validRows);
+            match = zeros(nValid, 9);
+            matchCount = 0;
 
-                    if isnan(edge_bucket(i, j))
-                        unmatch = [unmatch; record];
-                        continue;
-                    end
+            for idx = 1:nValid
+                rowIdx = validRows(idx);
+                colIdx = validCols(idx);
 
-                    diff = angdiff(curvesProj(i, j, 1), edge_bucket(i, j));
-                    diff = abs(diff);
-                    diff = min(diff, pi - diff);
-                    if diff < PARAMS.TAU_ORIENTATION
-                        match = [match; record];
-                    else
-                        unmatch = [unmatch; record];
-                    end
+                dir = reshape(curvesProj(rowIdx, colIdx, 3:5), 1, []) - C_t';
+                dirNorm = norm(dir);
+                if dirNorm <= eps
+                    continue;
+                end
+
+                record = [pic_size(1) - rowIdx, colIdx-1, C_t', dir ./ dirNorm, curvesProj(rowIdx, colIdx, 2)];
+
+                if isnan(edge_bucket(rowIdx, colIdx))
+                    continue;
+                end
+
+                diff = angdiff(curvesProj(rowIdx, colIdx, 1), edge_bucket(rowIdx, colIdx));
+                diff = abs(diff);
+                diff = min(diff, pi - diff);
+                if diff < PARAMS.TAU_ORIENTATION
+                    matchCount = matchCount + 1;
+                    match(matchCount, :) = record;
                 end
             end
 
+            match = match(1:matchCount, :);
+
             matchCurves_view{view} = match;
-            unmatchCurves_view{view} = unmatch;
-            curvesProj_view{view} = curvesProj;
             fprintf("Finished curve matching in view %d\n", view-1);
         end
 
@@ -518,7 +546,7 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
         for plotView = 1:viewCnt
             scatter(matchCurves_view{plotView}(:, 2), matchCurves_view{plotView}(:, 1),2,'red', 'filled');
             hold on;
-            scatter(edgeList_view{plotView}(:, 1), (1200 * ones(size(edgeList_view{plotView}(:, 2)))) - edgeList_view{plotView}(:, 2),1,'green', 'filled');
+            scatter(edgeList_view{plotView}(:, 1), (pic_size(1) * ones(size(edgeList_view{plotView}(:, 2)))) - edgeList_view{plotView}(:, 2),1,'green', 'filled');
             hold off;
             saveas(f,fullfile(pwd, 'tmp', 'figures', sprintf("matchCurves_view_%d", plotView - 1)),'jpg');
         end
@@ -582,7 +610,7 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
                     end
 
                     diff = dis - t(intersectPointIdx);
-                    if ~isempty(find(diff > PARAMS.TAU_DISTANCE_DIFF, 1))
+                    if any(diff > PARAMS.TAU_DISTANCE_DIFF)
                         surface_intersection_count(i) = surface_intersection_count(i) + 1;
                     end
                 end
@@ -619,4 +647,139 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
         end
         fprintf("Surface number after filtering: %d\n", cnt);
     end
+end
+
+function [ok] = run_step_loft(input_curves, pairs)
+    step_loft(input_curves, pairs);
+    ok = true;
+end
+
+function [ok] = run_step_occlusion_check(cfg, preProcessedCurves, pairs)
+    step_occlusion_check(cfg, preProcessedCurves, pairs);
+    ok = true;
+end
+
+function [runCtx, logFile] = init_run_context(cfg)
+    timestamp = string(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
+    runId = "run_" + timestamp;
+
+    logRoot = fullfile(pwd, 'tmp', 'run_logs');
+    if ~exist(logRoot, 'dir')
+        mkdir(logRoot);
+    end
+
+    runDir = fullfile(logRoot, runId);
+    mkdir(runDir);
+
+    runCtx = struct();
+    runCtx.id = runId;
+    runCtx.dir = runDir;
+    runCtx.dataset = string(cfg.dataset.name);
+    runCtx.scene = string(cfg.dataset.scene);
+
+    logFile = fullfile(runDir, 'pipeline.log');
+    fid = fopen(logFile, 'w');
+    if fid ~= -1
+        fprintf(fid, '[%s] [INFO] Run created: %s\n', char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss')), char(runId));
+        fclose(fid);
+    end
+end
+
+function validate_runtime_inputs(cfg, logFile)
+    datasetRoot = fullfile(pwd, 'data', string(cfg.dataset.name));
+    if ~exist(datasetRoot, 'dir')
+        error('Dataset path missing: %s', datasetRoot);
+    end
+
+    curveGraphPath = fullfile(datasetRoot, string(cfg.dataset.curve_graph_file));
+    if ~exist(curveGraphPath, 'file')
+        error('Curve graph file missing: %s', curveGraphPath);
+    end
+
+    sceneRoot = fullfile(datasetRoot, string(cfg.dataset.scene));
+    if ~exist(sceneRoot, 'dir')
+        error('Scene path missing: %s', sceneRoot);
+    end
+
+    projRoot = fullfile(sceneRoot, 'projection_matrix');
+    edgeRoot = fullfile(sceneRoot, 'edges');
+    if ~exist(projRoot, 'dir')
+        error('Projection folder missing: %s', projRoot);
+    end
+    if ~exist(edgeRoot, 'dir')
+        error('Edge folder missing: %s', edgeRoot);
+    end
+
+    if double(cfg.proximity.tau_alpha_min) > double(cfg.proximity.tau_alpha_max)
+        error('Invalid proximity range: tau_alpha_min > tau_alpha_max.');
+    end
+
+    if double(cfg.dataset.num_views) <= 0
+        error('dataset.num_views must be > 0.');
+    end
+
+    if double(cfg.occlusion.img_rows) <= 0 || double(cfg.occlusion.img_cols) <= 0
+        error('occlusion.img_rows and occlusion.img_cols must be > 0.');
+    end
+
+    log_message(logFile, "INFO", "Runtime input validation passed.");
+end
+
+function [result, stageInfo] = execute_stage(stageName, stageFunction, logFile)
+    disp("Start " + stageName);
+    log_message(logFile, "INFO", "Stage start: " + stageName);
+
+    stageTimer = tic;
+    stageInfo = struct();
+    stageInfo.name = stageName;
+    stageInfo.success = false;
+    stageInfo.duration_seconds = 0;
+    stageInfo.error_message = "";
+
+    try
+        result = stageFunction();
+        stageInfo.success = true;
+    catch ME
+        log_message(logFile, "ERROR", "Stage failed: " + stageName + " | " + string(ME.message));
+        rethrow(ME);
+    end
+
+    stageInfo.duration_seconds = toc(stageTimer);
+    log_message(logFile, "INFO", "Stage end: " + stageName + " | duration_sec=" + string(stageInfo.duration_seconds));
+end
+
+function write_run_report(runCtx, cfg, stageReports, pipelineStatus, totalSeconds, pipelineError, logFile)
+    report = struct();
+    report.run_id = runCtx.id;
+    report.dataset = runCtx.dataset;
+    report.scene = runCtx.scene;
+    report.timestamp = string(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+    report.status = pipelineStatus;
+    report.total_duration_seconds = totalSeconds;
+    report.error = pipelineError;
+    report.stages = stageReports;
+    report.config = cfg;
+
+    reportPath = fullfile(runCtx.dir, 'run_report.json');
+    fid = fopen(reportPath, 'w');
+    if fid == -1
+        log_message(logFile, "ERROR", "Unable to write run report: " + string(reportPath));
+        return;
+    end
+
+    fprintf(fid, '%s', jsonencode(report, 'PrettyPrint', true));
+    fclose(fid);
+    log_message(logFile, "INFO", "Run report written: " + string(reportPath));
+    log_message(logFile, "INFO", "Pipeline status: " + pipelineStatus + " | total_duration_sec=" + string(totalSeconds));
+end
+
+function log_message(logFile, level, message)
+    fid = fopen(logFile, 'a');
+    if fid == -1
+        return;
+    end
+
+    timestamp = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+    fprintf(fid, '[%s] [%s] %s\n', timestamp, char(level), char(string(message)));
+    fclose(fid);
 end
