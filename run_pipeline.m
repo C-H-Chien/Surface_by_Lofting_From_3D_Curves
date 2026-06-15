@@ -693,9 +693,9 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs, proximity_pairs)
 
         % Build proximity lookup: key = c1*1000+c2, value = distance
         prox_map = containers.Map('KeyType','int32','ValueType','double');
-        for pi = 1:size(proximity_pairs, 1)
-            key = int32(proximity_pairs(pi,1)*1000 + proximity_pairs(pi,2));
-            prox_map(key) = proximity_pairs(pi,3);
+        for prox_i = 1:size(proximity_pairs, 1)
+            key = int32(proximity_pairs(prox_i,1)*1000 + proximity_pairs(prox_i,2));
+            prox_map(key) = proximity_pairs(prox_i,3);
         end
 
         cnt = 0;
