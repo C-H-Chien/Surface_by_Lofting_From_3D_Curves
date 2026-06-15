@@ -1,10 +1,6 @@
-function run_pipeline()
+﻿function run_pipeline()
 close all;
 
-% Unified lofting pipeline:
-% - Reads all parameters from config.yaml once (or uses built-in defaults)
-% - Runs all steps in-memory (no intermediate .mat dependencies)
-% - Keeps output folders and final artifacts compatible with existing workflow
 
 mfiledir = fileparts(mfilename('fullpath'));
 cd(mfiledir);
@@ -34,6 +30,21 @@ elseif exist(cfgPath, 'file')
 else
     cfg = default_config();
 end
+
+if isfield(cfg, 'run_parallel_for')
+    run_parallel = cfg.run_parallel_for;
+elseif isfield(cfg, 'run_preferance') && isfield(cfg.run_preferance, 'run_parallel_for')
+    run_parallel = cfg.run_preferance.run_parallel_for;
+else
+    run_parallel = 0;
+end
+cfg.run_parallel_for = run_parallel;
+if run_parallel
+  cfg.parforArg = Inf;
+else
+  cfg.parforArg = 0;
+end
+
 cfg = resolve_dataset_defaults(cfg);
 rng(0);
 
@@ -81,6 +92,8 @@ function cfg = default_config()
     cfg.dataset.curve_graph_file = "curve_graph_ABC_NEF_00000325.mat";
     cfg.dataset.num_views = 50;
 
+    cfg.run_parallel_for = 0;
+
     cfg.preprocess.smoothing = 0;
     cfg.preprocess.smoothing_window = 500;
     cfg.preprocess.apply_length_constraints = 0;
@@ -97,11 +110,13 @@ function cfg = default_config()
     cfg.preprocess.save_curves_after_length_constraint = 0;
 
     cfg.proximity.tau_alpha_min = 0.2;
-    cfg.proximity.tau_alpha_max = 1.3;
+    cfg.proximity.tau_alpha_max = "auto";
+    cfg.proximity.tau_alpha_percentile = 75;
     cfg.proximity.plot = 0;
     cfg.proximity.has_ground_truth = 0;
 
-    cfg.gaussian_filter.tau_gaussian = 0.35;
+    cfg.gaussian_filter.tau_gaussian = "auto";
+    cfg.gaussian_filter.tau_gaussian_percentile = 70;
     cfg.gaussian_filter.plot = 0;
     cfg.gaussian_filter.has_ground_truth = 1;
 
@@ -111,7 +126,7 @@ function cfg = default_config()
     cfg.occlusion.generate_matches = 1;
     cfg.occlusion.ray_tracing = 1;
     cfg.occlusion.surface_filtering = 1;
-    cfg.occlusion.surface_filtering_threshold = 200;
+    cfg.occlusion.surface_filtering_threshold = "auto";
     cfg.occlusion.save_match_plot_2d = 0;
     cfg.occlusion.show_plot_match = 0;
     cfg.occlusion.plot_match_view = 10;
@@ -142,6 +157,10 @@ function cfg = resolve_dataset_defaults(cfg)
         else
             error('No scene folder found under data/%s.', string(cfg.dataset.name));
         end
+    end
+
+    if ~isfield(cfg, 'run_parallel_for')
+        cfg.run_parallel_for = 0;
     end
 
     if (~isfield(cfg.dataset, 'curve_graph_file')) || strcmpi(string(cfg.dataset.curve_graph_file), "auto") || strlength(string(cfg.dataset.curve_graph_file)) == 0
@@ -260,7 +279,7 @@ function preProcessedCurves = step_preprocess(cfg)
 end
 
 function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
-    PARAMS.TAU_ALPHA        = [double(cfg.proximity.tau_alpha_min), double(cfg.proximity.tau_alpha_max)];
+    PARAMS.TAU_ALPHA_MIN    = double(cfg.proximity.tau_alpha_min);
     PARAMS.PLOT             = double(cfg.proximity.plot);
     PARAMS.HAS_GROUND_TRUTH = double(cfg.proximity.has_ground_truth);
 
@@ -279,7 +298,19 @@ function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
         end
     end
 
-    curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA(1) & distances(:, 3) <= PARAMS.TAU_ALPHA(2), :);
+    tau_max_cfg = cfg.proximity.tau_alpha_max;%>Read from YAML file
+    if ischar(tau_max_cfg) || (isstring(tau_max_cfg) && strcmpi(strtrim(tau_max_cfg), "auto")) % Auto or fixed value
+        pct = 75; %> Default to 75-th percentile if not specified
+        if isfield(cfg.proximity, 'tau_alpha_percentile') 
+            pct = double(cfg.proximity.tau_alpha_percentile);
+        end
+        tau_alpha_max = prctile(distances(:, 3), pct); %set threshold to be the pct-th percentile of all distances
+        fprintf('  [auto] tau_alpha_max = %.4f (%.0f-th percentile of %d distances)\n', tau_alpha_max, pct, nPairs);
+    else
+        tau_alpha_max = double(tau_max_cfg);
+    end
+
+    curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA_MIN & distances(:, 3) <= tau_alpha_max, :);
     if PARAMS.PLOT
         histogram(distances(:,3), "NumBins",10);
         hold on;
@@ -303,7 +334,8 @@ function step_loft(input_curves, pairs)
     end
     mkdir(fullfile(pwd, 'blender', 'output'));
 
-    parfor i = 1:size(pairs, 1)
+    % parfor i = 1:size(pairs, 1)
+    for i = 1:size(pairs, 1)
         n1 = pairs(i, 1);
         n2 = pairs(i, 2);
         c1 = input_curves{n1};
@@ -323,7 +355,6 @@ function step_loft(input_curves, pairs)
 end
 
 function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
-    PARAMS.TAU_GAUSSIAN     = double(cfg.gaussian_filter.tau_gaussian);
     PARAMS.PLOT             = double(cfg.gaussian_filter.plot);
     PARAMS.HAS_GROUND_TRUTH = double(cfg.gaussian_filter.has_ground_truth);
 
@@ -353,6 +384,28 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
         end
 
         res(i, :) = [n1 n2 gc1 gc2];
+    end
+
+    tau_gaussian_cfg = cfg.gaussian_filter.tau_gaussian; %> Read from YAML file
+    if ischar(tau_gaussian_cfg) || (isstring(tau_gaussian_cfg) && strcmpi(strtrim(tau_gaussian_cfg), "auto")) % Auto or fixed value
+        pct = 70; %> Default to 70-th percentile if not specified
+        if isfield(cfg.gaussian_filter, 'tau_gaussian_percentile')
+            pct = double(cfg.gaussian_filter.tau_gaussian_percentile);
+        end
+        all_gc = abs([res(:,3); res(:,4)]); 
+        all_gc = all_gc(~isnan(all_gc)); %> Exclude NaN values which indicate failed curvature computation
+        PARAMS.TAU_GAUSSIAN = prctile(all_gc, pct); %set threshold to be the pct-th percentile of all curvature values
+        fprintf('  [auto] tau_gaussian = %.4f (%.0f-th percentile of curvature values)\n', PARAMS.TAU_GAUSSIAN, pct);
+        if exist('logFile', 'var'), log_message(logFile, "INFO", sprintf("  [auto] tau_gaussian = %.4f (%d-th percentile, %d values evaluated)", PARAMS.TAU_GAUSSIAN, pct, numel(all_gc))); end
+    else
+        PARAMS.TAU_GAUSSIAN = double(tau_gaussian_cfg);
+    end
+
+    for i = 1:nPairs
+        n1 = res(i, 1);
+        n2 = res(i, 2);
+        gc1 = res(i, 3);
+        gc2 = res(i, 4);
 
         if isnan(gc1) && (~isnan(gc2)) && abs(gc2) < PARAMS.TAU_GAUSSIAN
             pairs_after_curvature_filter(i, :) = [n1 n2 0 gc1 gc2];
@@ -379,10 +432,19 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
             continue;
         end
 
+        % Both gc are NaN means PLY load failed for both orientations.
+        % Curvature is unknown -- keep the pair rather than discard it.
+        if isnan(gc1) && isnan(gc2)
+            pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
+            continue;
+        end
+
         pairs_after_curvature_filter(i, :) = [-1 -1 -1 -1 -1];
     end
 
     pairs_after_curvature_filter(pairs_after_curvature_filter(:, 1) == -1, :) = [];
+    save(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter.mat'), 'pairs_after_curvature_filter');
+    save(fullfile(pwd, 'tmp', 'gc_filter_all_pairs.mat'), 'res');
     if PARAMS.PLOT
         gc = min(abs(res(:, 3:4)), [], 2);
         histogram(gc, "NumBins",40);
@@ -406,7 +468,14 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     PARAMS.GENERATE_MATCHES            = double(cfg.occlusion.generate_matches);
     PARAMS.RAY_TRACING                 = double(cfg.occlusion.ray_tracing);
     PARAMS.SURFACE_FILTERING           = double(cfg.occlusion.surface_filtering);
-    PARAMS.SURFACE_FILTERING_THRESHOLD = double(cfg.occlusion.surface_filtering_threshold);
+
+    sft_cfg = cfg.occlusion.surface_filtering_threshold; %> Read from YAML file
+    if ischar(sft_cfg) || (isstring(sft_cfg) && strcmpi(strtrim(sft_cfg), "auto"))  % Auto or fixed value
+        PARAMS.SURFACE_FILTERING_THRESHOLD = double(cfg.dataset.num_views) * 4; % 4* number of views
+        fprintf('  [auto] surface_filtering_threshold = %d (num_views * 4)\n', PARAMS.SURFACE_FILTERING_THRESHOLD);
+    else
+        PARAMS.SURFACE_FILTERING_THRESHOLD = double(sft_cfg); %> Use fixed value from YAML file
+    end
     PARAMS.SAVE_MATCH_PLOT_2D          = double(cfg.occlusion.save_match_plot_2d);
     PARAMS.SHOW_PLOT_MATCH             = double(cfg.occlusion.show_plot_match);
     PARAMS.PLOT_MATCH_VIEW             = double(cfg.occlusion.plot_match_view);
@@ -429,7 +498,8 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     edgeList_view = {};
 
     if PARAMS.GENERATE_MATCHES == 1
-        parfor view = 1:viewCnt
+        % parfor view = 1:viewCnt
+        for view = 1:viewCnt
             fname1 = fullfile(pwd, 'data', dataset_name, scene_name, "projection_matrix", sprintf("%02d.projmatrix", view-1));
             fname2 = fullfile(pwd, 'data', dataset_name, scene_name, 'edges', sprintf("edges_%02d.mat", view-1));
             projMatrix = load(fname1);
@@ -557,7 +627,8 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
 
     if PARAMS.RAY_TRACING  == 1
         surface_intersection_count = zeros(size(pairs, 1), 1);
-        parfor i = 1:size(pairs, 1)
+        % parfor i = 1:size(pairs, 1)
+        for i = 1:size(pairs, 1)
             c1 = pairs(i, 1);
             c2 = pairs(i, 2);
 
@@ -604,6 +675,10 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     else
         error('ray_tracing=0 requires external cache, which is disabled in run_pipeline.m. Set occlusion.ray_tracing=1 in config.yaml.');
     end
+    % Save occlusion scores with pair IDs for post-run analysis
+    occlusion_debug = [pairs(:,1:2), surface_intersection_count];
+    save(fullfile(pwd, 'tmp', 'surface_intersection_count.mat'), 'surface_intersection_count');
+    save(fullfile(pwd, 'tmp', 'occlusion_debug.mat'), 'occlusion_debug');
 
     if PARAMS.SURFACE_FILTERING == 1
         if exist(fullfile(pwd, 'tmp', 'filtered_surfaces'), 'dir')
