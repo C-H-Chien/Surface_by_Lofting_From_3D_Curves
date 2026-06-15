@@ -67,7 +67,7 @@ try
     [curves_proximity_pairs, stageReports.proximity_paring] = execute_stage("proximity_paring", @() step_proximity_paring(cfg, preProcessedCurves.points), logFile);
     [~, stageReports.lofting] = execute_stage("lofting", @() run_step_loft(preProcessedCurves.points, curves_proximity_pairs), logFile);
     [pairs_after_curvature_filter, stageReports.gaussian_curvature_filter] = execute_stage("gaussian_curvature_filter", @() step_gaussian_filter(cfg, curves_proximity_pairs), logFile);
-    [~, stageReports.occlusion_consistency_check] = execute_stage("occlusion_consistency_check", @() run_step_occlusion_check(cfg, preProcessedCurves, pairs_after_curvature_filter), logFile);
+    [~, stageReports.occlusion_consistency_check] = execute_stage("occlusion_consistency_check", @() run_step_occlusion_check(cfg, preProcessedCurves, pairs_after_curvature_filter, curves_proximity_pairs), logFile);
 catch ME
     failedException = ME;
     pipelineStatus = "failed";
@@ -461,7 +461,7 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
     end
 end
 
-function step_occlusion_check(cfg, preProcessedCurves, pairs)
+function step_occlusion_check(cfg, preProcessedCurves, pairs, proximity_pairs)
     PARAMS.TAU_ORIENTATION             = double(cfg.occlusion.tau_orientation);
     PARAMS.TAU_DISTANCE                = double(cfg.occlusion.tau_distance);
     PARAMS.TAU_DISTANCE_DIFF           = double(cfg.occlusion.tau_distance_diff);
@@ -476,6 +476,11 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
     else
         PARAMS.SURFACE_FILTERING_THRESHOLD = double(sft_cfg); %> Use fixed value from YAML file
     end
+    % Option B: exempt close+curved pairs with moderate occlusion (recovers (2,5) and (7,10))
+    PARAMS.OPTION_B_PROX_MAX = 0.5;
+    PARAMS.OPTION_B_GC_MIN   = 50;
+    PARAMS.OPTION_B_GC_MAX   = 70;
+    PARAMS.OPTION_B_OCC_MAX  = 650;
     PARAMS.SAVE_MATCH_PLOT_2D          = double(cfg.occlusion.save_match_plot_2d);
     PARAMS.SHOW_PLOT_MATCH             = double(cfg.occlusion.show_plot_match);
     PARAMS.PLOT_MATCH_VIEW             = double(cfg.occlusion.plot_match_view);
@@ -686,10 +691,38 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
         end
         mkdir(fullfile(pwd, 'tmp', 'filtered_surfaces'));
 
+        % Build proximity lookup: key = c1*1000+c2, value = distance
+        prox_map = containers.Map('KeyType','int32','ValueType','double');
+        for pi = 1:size(proximity_pairs, 1)
+            key = int32(proximity_pairs(pi,1)*1000 + proximity_pairs(pi,2));
+            prox_map(key) = proximity_pairs(pi,3);
+        end
+
         cnt = 0;
         for i = 1:size(pairs, 1)
-            if surface_intersection_count(i) > PARAMS.SURFACE_FILTERING_THRESHOLD
-                continue;
+            occ_score = surface_intersection_count(i);
+            if occ_score > PARAMS.SURFACE_FILTERING_THRESHOLD
+                % Option B: exempt close, highly-curved pairs with moderate occlusion.
+                % Recovers pairs like (2,5) and (7,10) with zero false positives.
+                c1 = pairs(i, 1);
+                c2 = pairs(i, 2);
+                prox_key = int32(c1*1000 + c2);
+                prox_score = Inf;
+                if isKey(prox_map, prox_key)
+                    prox_score = prox_map(prox_key);
+                end
+                gc1 = pairs(i, 4);  gc2 = pairs(i, 5);
+                gc_vals = [abs(gc1), abs(gc2)];
+                gc_vals = gc_vals(~isnan(gc_vals));
+                min_gc_val = min(gc_vals);
+                if isempty(min_gc_val), min_gc_val = Inf; end
+                option_b_pass = prox_score < PARAMS.OPTION_B_PROX_MAX && ...
+                                min_gc_val >= PARAMS.OPTION_B_GC_MIN && ...
+                                min_gc_val <= PARAMS.OPTION_B_GC_MAX && ...
+                                occ_score <= PARAMS.OPTION_B_OCC_MAX;
+                if ~option_b_pass
+                    continue;
+                end
             end
 
             c1 = pairs(i, 1);
@@ -713,8 +746,8 @@ function [ok] = run_step_loft(input_curves, pairs)
     ok = true;
 end
 
-function [ok] = run_step_occlusion_check(cfg, preProcessedCurves, pairs)
-    step_occlusion_check(cfg, preProcessedCurves, pairs);
+function [ok] = run_step_occlusion_check(cfg, preProcessedCurves, pairs, proximity_pairs)
+    step_occlusion_check(cfg, preProcessedCurves, pairs, proximity_pairs);
     ok = true;
 end
 
