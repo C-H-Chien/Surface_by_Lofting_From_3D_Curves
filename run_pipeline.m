@@ -455,20 +455,6 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
             pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
             continue;
         end
-
-        % Adaptive Rule 1: both orientations valid but symmetrically curved.
-        % A surface with similar curvature on both sides is geometrically
-        % consistent (cylinder/sphere-like) -- keep and let occlusion decide.
-        if ~isnan(gc1) && ~isnan(gc2)
-            gc_min = min(abs(gc1), abs(gc2));
-            gc_max = max(abs(gc1), abs(gc2));
-            sym_ratio = gc_min / gc_max;
-            if sym_ratio >= 0.8 && gc_min < 70
-                pairs_after_curvature_filter(i, :) = [n1 n2 1 gc1 gc2];
-                continue;
-            end
-        end
-
         % Adaptive Rule 2: one PLY orientation failed (one gc is NaN).
         % The valid orientation has high curvature but may still be a real surface
         % -- keep and let the occlusion filter make the final decision.
