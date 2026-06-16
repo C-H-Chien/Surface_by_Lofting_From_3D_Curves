@@ -318,7 +318,6 @@ function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
     else
         tau_alpha_max = double(tau_max_cfg);
     end
-    save(fullfile(pwd, 'tmp', 'proximity_distances.mat'), 'distances');
 
     curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA_MIN & distances(:, 3) <= tau_alpha_max, :);
     if PARAMS.PLOT
@@ -418,7 +417,6 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
     else
         PARAMS.TAU_GAUSSIAN = double(tau_gaussian_cfg);
     end
-    end
 
     for i = 1:nPairs
         n1 = res(i, 1);
@@ -484,8 +482,6 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
     end
 
     pairs_after_curvature_filter(pairs_after_curvature_filter(:, 1) == -1, :) = [];
-    save(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter.mat'), 'pairs_after_curvature_filter');
-    save(fullfile(pwd, 'tmp', 'gc_filter_all_pairs.mat'), 'res');
     if PARAMS.PLOT
         gc = min(abs(res(:, 3:4)), [], 2);
         histogram(gc, "NumBins",40);
@@ -727,10 +723,6 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
         error('ray_tracing=0 requires external cache, which is disabled in run_pipeline.m. Set occlusion.ray_tracing=1 in config.yaml.');
     end
     % Save occlusion scores with pair IDs for post-run analysis
-    occlusion_debug = [pairs(:,1:2), surface_intersection_count];
-    save(fullfile(pwd, 'tmp', 'surface_intersection_count.mat'), 'surface_intersection_count');
-    save(fullfile(pwd, 'tmp', 'occlusion_debug.mat'), 'occlusion_debug');
-
     if PARAMS.SURFACE_FILTERING == 1
         if exist(fullfile(pwd, 'tmp', 'filtered_surfaces'), 'dir')
             rmdir((fullfile(pwd, 'tmp', 'filtered_surfaces')), 's');
