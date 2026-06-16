@@ -52,7 +52,7 @@ occlusion:
   generate_matches: 1
   ray_tracing: 1
   surface_filtering: 1
-  surface_filtering_threshold: "auto"
+  surface_filtering_threshold: 225   # num_views * 4.5 -- recovers (2,5) with zero false positives
   save_match_plot_2d: 0
   show_plot_match: 0
   plot_match_view: 10
