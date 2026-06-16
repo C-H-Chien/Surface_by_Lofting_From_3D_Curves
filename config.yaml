@@ -34,14 +34,18 @@ preprocess:
 
 proximity:
   tau_alpha_min: 0.2
-  tau_alpha_max: "auto"       # auto = Nth percentile of pairwise distances
-  tau_alpha_percentile: 75
+  tau_alpha_max: "auto"       # auto = data-driven (percentile or mean_sigma mode)
+  tau_alpha_percentile: 75    # used when tau_alpha_mode is percentile (default)
+  # tau_alpha_mode: "mean_sigma"  # uncomment to use mean + N*std
+  # tau_alpha_sigma: 2.0          # N for mean_sigma (default 2.0)
   plot: 0
   has_ground_truth: 0
 
 gaussian_filter:
   tau_gaussian: "auto"
-  tau_gaussian_percentile: 70
+  tau_gaussian_percentile: 70  # used when tau_gaussian_mode is percentile (default)
+  # tau_gaussian_mode: "mean_sigma"  # uncomment to use mean + N*std
+  # tau_gaussian_sigma: 2.0          # N for mean_sigma (default 2.0)
   plot: 0
   has_ground_truth: 1
 
@@ -52,7 +56,9 @@ occlusion:
   generate_matches: 1
   ray_tracing: 1
   surface_filtering: 1
-  surface_filtering_threshold: 225   # num_views * 4.5 -- recovers (2,5) with zero false positives
+  surface_filtering_threshold: 225   # fixed; recovers (2,5) with zero false positives
+  # surface_filtering_mode: "mean_sigma"  # uncomment to use mean + N*std of occ scores
+  # surface_filtering_sigma: 2.0          # N for mean_sigma (default 2.0)
   save_match_plot_2d: 0
   show_plot_match: 0
   plot_match_view: 10

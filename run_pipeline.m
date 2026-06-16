@@ -300,15 +300,25 @@ function curves_proximity_pairs = step_proximity_paring(cfg, input_curves)
 
     tau_max_cfg = cfg.proximity.tau_alpha_max;%>Read from YAML file
     if ischar(tau_max_cfg) || (isstring(tau_max_cfg) && strcmpi(strtrim(tau_max_cfg), "auto")) % Auto or fixed value
-        pct = 75; %> Default to 75-th percentile if not specified
-        if isfield(cfg.proximity, 'tau_alpha_percentile') 
-            pct = double(cfg.proximity.tau_alpha_percentile);
+        use_sigma = isfield(cfg.proximity, 'tau_alpha_mode') && strcmpi(strtrim(cfg.proximity.tau_alpha_mode), 'mean_sigma');
+        if use_sigma
+            nsig = 2.0;
+            if isfield(cfg.proximity, 'tau_alpha_sigma'), nsig = double(cfg.proximity.tau_alpha_sigma); end
+            d = distances(:, 3);
+            tau_alpha_max = mean(d) + nsig * std(d);
+            fprintf('  [auto] tau_alpha_max = %.4f (mean + %.1f*std, mean=%.4f std=%.4f)\n', tau_alpha_max, nsig, mean(d), std(d));
+        else
+            pct = 75; %> Default to 75-th percentile if not specified
+            if isfield(cfg.proximity, 'tau_alpha_percentile')
+                pct = double(cfg.proximity.tau_alpha_percentile);
+            end
+            tau_alpha_max = prctile(distances(:, 3), pct); %set threshold to be the pct-th percentile of all distances
+            fprintf('  [auto] tau_alpha_max = %.4f (%.0f-th percentile of %d distances)\n', tau_alpha_max, pct, nPairs);
         end
-        tau_alpha_max = prctile(distances(:, 3), pct); %set threshold to be the pct-th percentile of all distances
-        fprintf('  [auto] tau_alpha_max = %.4f (%.0f-th percentile of %d distances)\n', tau_alpha_max, pct, nPairs);
     else
         tau_alpha_max = double(tau_max_cfg);
     end
+    save(fullfile(pwd, 'tmp', 'proximity_distances.mat'), 'distances');
 
     curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA_MIN & distances(:, 3) <= tau_alpha_max, :);
     if PARAMS.PLOT
@@ -388,17 +398,26 @@ function pairs_after_curvature_filter = step_gaussian_filter(cfg, pairs)
 
     tau_gaussian_cfg = cfg.gaussian_filter.tau_gaussian; %> Read from YAML file
     if ischar(tau_gaussian_cfg) || (isstring(tau_gaussian_cfg) && strcmpi(strtrim(tau_gaussian_cfg), "auto")) % Auto or fixed value
-        pct = 70; %> Default to 70-th percentile if not specified
-        if isfield(cfg.gaussian_filter, 'tau_gaussian_percentile')
-            pct = double(cfg.gaussian_filter.tau_gaussian_percentile);
-        end
-        all_gc = abs([res(:,3); res(:,4)]); 
+        all_gc = abs([res(:,3); res(:,4)]);
         all_gc = all_gc(~isnan(all_gc)); %> Exclude NaN values which indicate failed curvature computation
-        PARAMS.TAU_GAUSSIAN = prctile(all_gc, pct); %set threshold to be the pct-th percentile of all curvature values
-        fprintf('  [auto] tau_gaussian = %.4f (%.0f-th percentile of curvature values)\n', PARAMS.TAU_GAUSSIAN, pct);
-        if exist('logFile', 'var'), log_message(logFile, "INFO", sprintf("  [auto] tau_gaussian = %.4f (%d-th percentile, %d values evaluated)", PARAMS.TAU_GAUSSIAN, pct, numel(all_gc))); end
+        use_sigma = isfield(cfg.gaussian_filter, 'tau_gaussian_mode') && strcmpi(strtrim(cfg.gaussian_filter.tau_gaussian_mode), 'mean_sigma');
+        if use_sigma
+            nsig = 2.0;
+            if isfield(cfg.gaussian_filter, 'tau_gaussian_sigma'), nsig = double(cfg.gaussian_filter.tau_gaussian_sigma); end
+            PARAMS.TAU_GAUSSIAN = mean(all_gc) + nsig * std(all_gc);
+            fprintf('  [auto] tau_gaussian = %.4f (mean + %.1f*std, mean=%.4f std=%.4f)\n', PARAMS.TAU_GAUSSIAN, nsig, mean(all_gc), std(all_gc));
+        else
+            pct = 70; %> Default to 70-th percentile if not specified
+            if isfield(cfg.gaussian_filter, 'tau_gaussian_percentile')
+                pct = double(cfg.gaussian_filter.tau_gaussian_percentile);
+            end
+            PARAMS.TAU_GAUSSIAN = prctile(all_gc, pct); %set threshold to be the pct-th percentile of all curvature values
+            fprintf('  [auto] tau_gaussian = %.4f (%.0f-th percentile of curvature values)\n', PARAMS.TAU_GAUSSIAN, pct);
+        end
+        if exist('logFile', 'var'), log_message(logFile, "INFO", sprintf("  [auto] tau_gaussian = %.4f (%d values evaluated)", PARAMS.TAU_GAUSSIAN, numel(all_gc))); end
     else
         PARAMS.TAU_GAUSSIAN = double(tau_gaussian_cfg);
+    end
     end
 
     for i = 1:nPairs
@@ -493,8 +512,18 @@ function step_occlusion_check(cfg, preProcessedCurves, pairs)
 
     sft_cfg = cfg.occlusion.surface_filtering_threshold; %> Read from YAML file
     if ischar(sft_cfg) || (isstring(sft_cfg) && strcmpi(strtrim(sft_cfg), "auto"))  % Auto or fixed value
-        PARAMS.SURFACE_FILTERING_THRESHOLD = double(cfg.dataset.num_views) * 4; % 4* number of views
-        fprintf('  [auto] surface_filtering_threshold = %d (num_views * 4)\n', PARAMS.SURFACE_FILTERING_THRESHOLD);
+        use_sigma = isfield(cfg.occlusion, 'surface_filtering_mode') && strcmpi(strtrim(cfg.occlusion.surface_filtering_mode), 'mean_sigma');
+        if use_sigma
+            nsig = 2.0;
+            if isfield(cfg.occlusion, 'surface_filtering_sigma'), nsig = double(cfg.occlusion.surface_filtering_sigma); end
+            occ_mu = mean(double(surface_intersection_count));
+            occ_sd = std(double(surface_intersection_count));
+            PARAMS.SURFACE_FILTERING_THRESHOLD = occ_mu + nsig * occ_sd;
+            fprintf('  [auto] surface_filtering_threshold = %.1f (mean + %.1f*std, mean=%.1f std=%.1f)\n', PARAMS.SURFACE_FILTERING_THRESHOLD, nsig, occ_mu, occ_sd);
+        else
+            PARAMS.SURFACE_FILTERING_THRESHOLD = double(cfg.dataset.num_views) * 4; % 4* number of views
+            fprintf('  [auto] surface_filtering_threshold = %d (num_views * 4)\n', PARAMS.SURFACE_FILTERING_THRESHOLD);
+        end
     else
         PARAMS.SURFACE_FILTERING_THRESHOLD = double(sft_cfg); %> Use fixed value from YAML file
     end
