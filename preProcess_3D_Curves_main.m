@@ -2,36 +2,52 @@ clear;
 close all;
 
 addpath(fullfile(pwd, 'util'));
+addpath(fullfile(pwd, 'tools', 'projection'));
 rng(0);
 
+cfg = yaml.loadFile(fullfile(pwd, 'config.yaml'));
+
 %> All curve points (could be very noisy)
-dataset = "ABC-NEF";
-% input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_amsterdam.mat')).complete_curve_graph';
-input_curves = load(fullfile(pwd, 'data', dataset, 'curve_graph_ABC_NEF_00000325.mat')).complete_curve_graph;
+dataset = string(cfg.dataset.name);
+curve_graph_file = string(cfg.dataset.curve_graph_file);
+scene = string(cfg.dataset.scene);
+
+%> Auto-detect curve_graph_file if set to "auto"
+if strcmpi(strtrim(curve_graph_file), "auto")
+    curve_dir = fullfile(pwd, 'data', dataset);
+    files = dir(fullfile(curve_dir, 'curve_graph_*.mat'));
+    if isempty(files)
+        error('Auto-detection failed: no curve_graph_*.mat files found in %s', curve_dir);
+    end
+    curve_graph_file = string(files(1).name);
+    fprintf('[auto] curve_graph_file = %s\n', curve_graph_file);
+end
+
+input_curves = load(fullfile(pwd, 'data', dataset, curve_graph_file)).complete_curve_graph;
 nCurves = numel(input_curves);
 
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hyper-parameters >>>>>>>>>>>>>>>>>>>>>>>>>>>>
 %> For a clean and perfect 3D curve network, e.g., GT curves from the ABC-NEF dataset, 
 %  disable SMOOTHING and APPLY_LENGTH_CONSTRAINTS
 %> (i) Smoothing the curves
-PARAMS.SMOOTHING                           = 0;
-PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA        = 500;
+PARAMS.SMOOTHING                           = double(cfg.preprocess.smoothing);
+PARAMS.SMOOTHING_ACROSS_NUM_OF_DATA        = double(cfg.preprocess.smoothing_window);
 %> (ii) Filter the curves by length constraint
-PARAMS.APPLY_LENGTH_CONSTRAINTS            = 0;
-PARAMS.TAU_LENGTH                          = 0.15;
-PARAMS.TAU_NUM_OF_PTS                      = 500;
+PARAMS.APPLY_LENGTH_CONSTRAINTS            = double(cfg.preprocess.apply_length_constraints);
+PARAMS.TAU_LENGTH                          = double(cfg.preprocess.tau_length);
+PARAMS.TAU_NUM_OF_PTS                      = double(cfg.preprocess.tau_num_of_pts);
 %> (iii) Gaussian derivatives for computing the curve curvature
-PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = 10;
-PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = 20;
+PARAMS.GAUSSIAN_DERIVATIVE_SIGMA           = double(cfg.preprocess.gaussian_derivative_sigma);
+PARAMS.GAUSSIAN_DERIVATIVE_DATA_RANGE      = double(cfg.preprocess.gaussian_derivative_data_range);
 %> (iv) Break the curve at the high curvature point
-PARAMS.BREAK                               = 0;
-PARAMS.MIN_BREAK_CURVATURE                 = 2.5e-3;
+PARAMS.BREAK                               = double(cfg.preprocess.break_curves);
+PARAMS.MIN_BREAK_CURVATURE                 = double(cfg.preprocess.min_break_curvature);
 %> (v) For debugging purpose
-PARAMS.PLOT                                = 1;
-PARAMS.DEBUG                               = 1;
-PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = 10;
-PARAMS.PLOT_3D_TANGENTS                    = 0;
-PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = 0;
+PARAMS.PLOT                                = double(cfg.preprocess.plot);
+PARAMS.DEBUG                               = double(cfg.preprocess.debug);
+PARAMS.DEBUG_COLORMAP_CURVE_INDEX          = double(cfg.preprocess.debug_colormap_curve_index);
+PARAMS.PLOT_3D_TANGENTS                    = double(cfg.preprocess.plot_3d_tangents);
+PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT = double(cfg.preprocess.save_curves_after_length_constraint);
 %>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 
 %> (i) Smooth input curves
@@ -106,10 +122,9 @@ end
 
 %> Save the result as `preProcessedCurves`
 if PARAMS.SAVE_CURVES_AFTER_LENGTH_CONSTRAINT == 1
-    save(fullfile(pwd, 'tmp', 'curves_after_length_filter'), "curves_after_length_filter");
+    save(fullfile(pwd, 'tmp', 'curves_after_length_filter.mat'), "curves_after_length_filter");
 end
-save(fullfile(pwd, 'data', dataset, 'preProcessedCurves'), "preProcessedCurves");
-% save(fullfile(pwd, 'tmp', 'preProcessedCurves'), "preProcessedCurves");
+save(fullfile(pwd, 'tmp', 'preProcessedCurves.mat'), "preProcessedCurves");
 
 %> (v) DEBUG: Show the colormap of curvatures of a curve (specified by the PARAMS.DEBUG_COLORMAP_CURVE_INDEX)
 if PARAMS.DEBUG == 1

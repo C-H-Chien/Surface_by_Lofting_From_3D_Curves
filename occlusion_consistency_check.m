@@ -6,13 +6,15 @@ addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'util', 'TriangleRayIntersection'));
 addpath(fullfile(pwd, 'util', 'plyread/'));
 addpath(fullfile(pwd, 'util','rayBoxIntersection/'));
+addpath(fullfile(pwd, 'tools', 'projection'));
+cfg = yaml.loadFile(fullfile(pwd, 'config.yaml'));
+
 PARAMS.TAU_ORIENTATION                     = pi/18; %> 5 deg
 PARAMS.TAU_DISTANCE                        = 3; %> in pixels
 PARAMS.TAU_DISTANCE_DIFF                   = 0.2; %> determine if there is an intersection
 PARAMS.GENERATE_MATCHES                    = 1;
 PARAMS.RAY_TRACING                         = 1;
 PARAMS.SURFACE_FILTERING                   = 1;
-PARAMS.SURFACE_FILTERING_THRESHOLD         = 200;   
 PARAMS.SAVE_MATCH_PLOT_2D                  = 0;
 PARAMS.SHOW_PLOT_MATCH                     = 0;
 PARAMS.PLOT_MATCH_VIEW                     = 10;
@@ -30,7 +32,7 @@ curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves
 % load tangents
 tangents = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.tangents;
 % load pairs
-pairs = load("./tmp/pairs_after_curvature_filter.mat").pairs_after_curvature_filter;
+pairs = load(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter.mat')).pairs_after_curvature_filter;
 
 %> pixel mask
 [pixel_offset_col,pixel_offset_row] = meshgrid(-PARAMS.TAU_DISTANCE:PARAMS.TAU_DISTANCE,-PARAMS.TAU_DISTANCE:PARAMS.TAU_DISTANCE);
@@ -116,7 +118,7 @@ if PARAMS.GENERATE_MATCHES == 1
             end
         end
 
-        %> compare the curve projection and the edge and generate rays if
+%> compare the curve projection and the edge and generate rays if
         %the curve projection and the edge match
         match = [];
         unmatch = [];
@@ -147,11 +149,11 @@ if PARAMS.GENERATE_MATCHES == 1
                 end
             end
         end
-    
+
         matchCurves_view{view} = match;
         unmatchCurves_view{view} = unmatch;
         curvesProj_view{view} = curvesProj;
-        % fileID = fopen(fullfile(pwd, 'tmp', 'optix', sprintf("view_%d.txt", viewCnt)),'w');
+        % fileID = fopen(fullfile(pwd, 'tmp', 'optix', sprintf("view_%d.txt", view-1)),'w');
         % fprintf(fileID,'%d %d %f %f %f %f %f %f %f\n', match');
         % fclose(fileID);
         fprintf("Finished curve matching in view %d\n", view-1);
@@ -176,14 +178,13 @@ if PARAMS.SAVE_MATCH_PLOT_2D == 1
     for plotView = 1:viewCnt
         scatter(matchCurves_view{plotView}(:, 2), matchCurves_view{plotView}(:, 1),2,'red', 'filled')
         hold on;
-        scatter(edgeList_view{plotView}(:, 1), (1200 * ones(size(edgeList_view{plotView}(:, 2)))) - edgeList_view{plotView}(:, 2),1,'green', 'filled')
+        scatter(edgeList_view{plotView}(:, 1), (pic_size(1) * ones(size(edgeList_view{plotView}(:, 2)))) - edgeList_view{plotView}(:, 2),1,'green', 'filled')
         hold off;
         saveas(f,fullfile(pwd, 'tmp', 'figures', sprintf("matchCurves_view_%d", plotView - 1)),'jpg');
     end
     close(f)
 end
 
-%> show the curve mathing result in each view
 if PARAMS.SHOW_PLOT_MATCH == 1
     plotView = PARAMS.PLOT_MATCH_VIEW;
     for i = 1:size(curves, 2)
@@ -215,18 +216,16 @@ if PARAMS.RAY_TRACING  == 1
     tic;
     surface_intersection_count = zeros(size(pairs, 1), 1);
     parfor i = 1:size(pairs, 1)
-        tic;
         c1 = pairs(i, 1);
         c2 = pairs(i, 2);
-        
-        %> read surface
+
         surfaceName = "loftsurf_" + int2str(pairs(i, 1)) + "_" + int2str(pairs(i, 2)) + "_";
         if(pairs(i, 3) == 1)
             surfaceName = surfaceName + "normal.ply";
         else
             surfaceName = surfaceName + "reverse.ply";
         end
-    
+
         try
             [tri,pts] = plyread(fullfile(pwd, 'blender', 'output', surfaceName),'tri');
         catch
@@ -243,12 +242,14 @@ if PARAMS.RAY_TRACING  == 1
                 ct = matchCurves_view{v}(k, 3:5);
                 dir = matchCurves_view{v}(k, 6:8);
                 dis = matchCurves_view{v}(k, 9);
+
                 %> skip if the ray doesn't intersect with the surface
-                % bounding box 
+                % bounding box
                 interset = rayBoxIntersection(ct, dir, bbox_vmin, bbox_vmax);
                 if ~interset
                     continue;
                 end
+
                 %> check if the ray has intersection with the surface
                 [intersect, t] = TriangleRayIntersection(ct, dir, pts(tri(:, 1), :), pts(tri(:, 2), :), pts(tri(:, 3), :), 'lineType' , 'ray');
 
@@ -265,21 +266,41 @@ if PARAMS.RAY_TRACING  == 1
                 if isempty(intersectPointIdx)
                     continue;
                 end
+
                 %> compare the distance between the curve point and the
                 %intersection to determine if the suface is valid
-                diff =  dis - t(intersectPointIdx);
-                if ~isempty(find(diff > PARAMS.TAU_DISTANCE_DIFF))
+                diff = dis - t(intersectPointIdx);
+                if any(diff > PARAMS.TAU_DISTANCE_DIFF)
                     surface_intersection_count(i) = surface_intersection_count(i) + 1;
                 end
             end
         end
         fprintf("Finished %s\n", surfaceName);
-        toc;
     end
     save(fullfile(pwd, 'tmp', 'surface_intersection_count.mat'), "surface_intersection_count");
     toc;
 else
-    surface_intersection_count = load(fullfile(pwd, 'tmp', 'surface_intersection_count.mat')).surface_intersection_count;
+    error('ray_tracing=0 requires external cache, which is disabled in this legacy runner. Set occlusion.ray_tracing=1 in config.yaml.');
+end
+
+sft_cfg = cfg.occlusion.surface_filtering_threshold;
+if ischar(sft_cfg) || (isstring(sft_cfg) && strcmpi(strtrim(sft_cfg), "auto"))
+    use_sigma = isfield(cfg.occlusion, 'surface_filtering_mode') && strcmpi(strtrim(cfg.occlusion.surface_filtering_mode), 'mean_sigma');
+    if use_sigma
+        nsig = 2.0;
+        if isfield(cfg.occlusion, 'surface_filtering_sigma')
+            nsig = double(cfg.occlusion.surface_filtering_sigma);
+        end
+        occ_mu = mean(double(surface_intersection_count));
+        occ_sd = std(double(surface_intersection_count));
+        PARAMS.SURFACE_FILTERING_THRESHOLD = occ_mu + nsig * occ_sd;
+        fprintf('  [auto] surface_filtering_threshold = %.1f (mean + %.1f*std, mean=%.1f std=%.1f)\n', PARAMS.SURFACE_FILTERING_THRESHOLD, nsig, occ_mu, occ_sd);
+    else
+        PARAMS.SURFACE_FILTERING_THRESHOLD = double(cfg.dataset.num_views) * 4;
+        fprintf('  [auto] surface_filtering_threshold = %d (num_views * 4)\n', PARAMS.SURFACE_FILTERING_THRESHOLD);
+    end
+else
+    PARAMS.SURFACE_FILTERING_THRESHOLD = double(sft_cfg);
 end
 
 %> filtering the surface and copy the valid ones

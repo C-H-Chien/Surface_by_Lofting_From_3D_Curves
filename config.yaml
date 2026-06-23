@@ -11,7 +11,7 @@ dataset:
   name: "ABC-NEF"
   scene: "00000325"
   curve_graph_file: "auto"
-  num_views: 0
+  num_views: 50
 
 run_preferance:
    run_parallel_for: 0
@@ -56,7 +56,7 @@ occlusion:
   generate_matches: 1
   ray_tracing: 1
   surface_filtering: 1
-  surface_filtering_threshold: 225   # fixed; calibrated to 98/100 recall, 0 false positives
+  surface_filtering_threshold: "auto"   # auto = data-driven threshold
   # surface_filtering_mode: "mean_sigma"  # alternative: mean + N*std (not recommended: floods false positives)
   # surface_filtering_sigma: 2.0
   save_match_plot_2d: 0
