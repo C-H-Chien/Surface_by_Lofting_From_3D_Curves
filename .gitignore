@@ -1,6 +1,7 @@
 .DS_Store
 *.asv
 tmp/
+/blender/output/
 
 # Generated Blender loft meshes
 blender/output/*.ply
