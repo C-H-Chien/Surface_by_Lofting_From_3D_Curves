@@ -13,7 +13,7 @@ if exist(fullfile(pwd, 'blender', 'output'), 'dir')
    
 end
 mkdir(fullfile(pwd, 'blender', 'output'))
-parfor i = 1:size(pairs, 1)
+for i = 1:size(pairs, 1)
     n1 = pairs(i, 1);
     n2 = pairs(i, 2);
     c1 = input_curves{n1};
@@ -23,8 +23,7 @@ parfor i = 1:size(pairs, 1)
     fname2 = fullfile(pwd, 'blender', 'output', "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_reverse.ply");
     
     %> loft surface in two possible ways and save
-    [vertices, faces] = loft_surface(c1, c2, 0, 10);
-
+    [vertices, faces] = loft_surface(c1, c2, 0, 30);
     % plot3(c1(:, 1), c1(:, 2), c1(:, 3),"Color",'blue', 'linewidth',3);
     % hold on;
     % plot3(c2(:, 1), c2(:, 2), c2(:, 3), "Color",'blue', 'linewidth',3);
@@ -36,7 +35,7 @@ parfor i = 1:size(pairs, 1)
     mesh = surfaceMesh(vertices,faces);
     writeSurfaceMesh(mesh,fname1);
 
-    [vertices, faces] = loft_surface(c1, c2, 1, 10);
+    [vertices, faces] = loft_surface(c1, c2, 1, 30);
     mesh = surfaceMesh(vertices,faces);
     writeSurfaceMesh(mesh,fname2);
 end

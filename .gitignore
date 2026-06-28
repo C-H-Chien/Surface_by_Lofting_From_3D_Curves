@@ -3,3 +3,14 @@
 tmp/
 /blender/output/
 
+# Generated Blender loft meshes
+blender/output/*.ply
+blender/output/**/*.ply
+blender/out/*.ply
+blender/out/**/*.ply
+
+# Keep only the 00000325 ABC-NEF example object in the repository
+data/ABC-NEF/*
+!data/ABC-NEF/00000325/
+!data/ABC-NEF/00000325/**
+

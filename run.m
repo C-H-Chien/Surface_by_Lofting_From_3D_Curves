@@ -1,3 +1,11 @@
+close all; %% close any old figures
+mfiledir = fileparts(mfilename('fullpath')); %% get the directory of the current script
+cd(mfiledir);
+
+if ~exist(fullfile(pwd, 'tmp'), 'dir') % create a tmp directory to save intermediate results
+	mkdir(fullfile(pwd, 'tmp'));
+end
+
 tic
 disp("Start pre-process")
 preProcess_3D_Curves_main;
