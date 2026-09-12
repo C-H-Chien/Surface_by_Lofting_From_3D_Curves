@@ -1,5 +1,6 @@
-clear;
+
 close all;
+clearvars -except pipelineTimer timings;
 
 addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'tools', 'projection'));
