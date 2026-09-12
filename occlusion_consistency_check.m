@@ -1,5 +1,5 @@
-clear;
 close all;
+clearvars -except pipelineTimer timings;
 
 tic;
 addpath(fullfile(pwd, 'util'));

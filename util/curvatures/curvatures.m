@@ -68,8 +68,8 @@ for i=1:length(tri(:,1))
     l_edg(i,2)=norm(v2(i,:));
     l_edg(i,3)=norm(v3(i,:));
     
-    ang_tri(i,1)=acos(dot(v1(i,:)/l_edg(i,1),-v3(i,:)/l_edg(i,3)));
-    ang_tri(i,2)=acos(dot(-v1(i,:)/l_edg(i,1),v2(i,:)/l_edg(i,2)));
+    ang_tri(i,1)=acos(dot(v1(i,:)/(l_edg(i,1)+eps),-v3(i,:)/(l_edg(i,3)+eps)));
+    ang_tri(i,2)=acos(dot(-v1(i,:)/(l_edg(i,1)+eps),v2(i,:)/(l_edg(i,2)+eps)));
     ang_tri(i,3)=pi-(ang_tri(i,1)+ang_tri(i,2));
     
 end
@@ -102,11 +102,11 @@ for i=1:length(x)
         
         %%%%% mean curvature operator
         if     k==1
-            mc_vec=mc_vec+(v1(neib,:)/tan(ang_tri(neib,3))-v3(neib,:)/tan(ang_tri(neib,2)));
+            mc_vec=mc_vec+(v1(neib,:)/(tan(ang_tri(neib,3)+eps))-v3(neib,:)/(tan(ang_tri(neib,2)+eps)));
         elseif k==2
-            mc_vec=mc_vec+(v2(neib,:)/tan(ang_tri(neib,1))-v1(neib,:)/tan(ang_tri(neib,3)));
+            mc_vec=mc_vec+(v2(neib,:)/(tan(ang_tri(neib,1)+eps))-v1(neib,:)/(tan(ang_tri(neib,3)+eps)));
         elseif k==3
-            mc_vec=mc_vec+(v3(neib,:)/tan(ang_tri(neib,2))-v2(neib,:)/tan(ang_tri(neib,1)));
+            mc_vec=mc_vec+(v3(neib,:)/(tan(ang_tri(neib,2)+eps))-v2(neib,:)/(tan(ang_tri(neib,1)+eps)));
         end
         
         
@@ -124,7 +124,7 @@ for i=1:length(x)
                         if ll==4       %% p1==>l2   ,p2==>l3   ,p3==>l1    
                             ll=1;
                         end
-                        sum=sum+(l_edg(neib,ll)^2/tan(ang_tri(neib,m)));
+                        sum=sum+(l_edg(neib,ll)^2/(tan(ang_tri(neib,m))+eps));
                     end
                 end
                 a_mixed(i)=a_mixed(i)+sum/8;
@@ -133,15 +133,15 @@ for i=1:length(x)
         
         %%%% normal vector at each vertex    
         %%%% weighted average of normal vecotors of neighbour triangles
-        wi=1/norm([f_center(neib,1)-x(i),f_center(neib,2)-y(i),f_center(neib,3)-z(i)]);
+        wi=1/(norm([f_center(neib,1)-x(i),f_center(neib,2)-y(i),f_center(neib,3)-z(i)])+eps);
         n_vec=n_vec+wi*f_normal(neib,:);
         
     end
        
-    GC(i)=(2*pi()-alf(i))/a_mixed(i);
+    GC(i)=(2*pi()-alf(i))/(a_mixed(i)+eps);
     
-    mc_vec=0.25*mc_vec/a_mixed(i);
-    n_vec=n_vec/norm(n_vec);
+    mc_vec=0.25*mc_vec/(a_mixed(i)+eps);
+    n_vec=n_vec/norm(n_vec+eps);
     %%%% sign of MC
     if dot(mc_vec,n_vec) <0
         MC(i)=-norm(mc_vec);
