@@ -2,6 +2,7 @@
 *.asv
 tmp/
 /blender/output/
+evaluation/__pycache__/
 
 # Generated Blender loft meshes
 blender/output/*.ply
