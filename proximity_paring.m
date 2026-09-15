@@ -1,5 +1,7 @@
-clear;
+
 close all;
+clearvars -except pipelineTimer timings;
+
 addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'tools', 'projection'));
 
@@ -51,7 +53,8 @@ else
     tau_alpha_max = double(tau_max_cfg);
 end
 
-curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA_MIN & distances(:, 3) <= tau_alpha_max, :);
+%> curves_proximity_pairs = distances(distances(:, 3) >= PARAMS.TAU_ALPHA_MIN & distances(:, 3) <= tau_alpha_max, :);
+curves_proximity_pairs = distances;
 
 save(fullfile(pwd, 'tmp', 'curves_proximity_pairs.mat'), "curves_proximity_pairs");
 

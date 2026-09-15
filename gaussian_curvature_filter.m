@@ -1,4 +1,6 @@
-clear
+
+clearvars -except pipelineTimer timings;
+
 % blender .ply file naming
 % loftsurf_1_2_original.ply, loft curve 1 and 2 in the original sequence
 % loftsurf_1_2_reverse.ply, loft curve 1 and 2 with curve 2 reversed
@@ -114,6 +116,24 @@ end
 %> save
 pairs_after_curvature_filter(pairs_after_curvature_filter(:, 1) == -1, :) = [];
 save(fullfile(pwd, 'tmp', 'pairs_after_curvature_filter'), "pairs_after_curvature_filter");
+
+%> copy the surviving surfaces into a folder so the evaluation script can be
+%  pointed at this stage (same idea as occlusion_consistency_check.m)
+outDir = fullfile(pwd, 'tmp', 'surfaces_after_curvature_filter');
+if exist(outDir, 'dir')
+    rmdir(outDir, 's');
+end
+mkdir(outDir);
+for i = 1:size(pairs_after_curvature_filter, 1)
+    n1 = pairs_after_curvature_filter(i, 1);
+    n2 = pairs_after_curvature_filter(i, 2);
+    if pairs_after_curvature_filter(i, 3) == 1
+        surfaceName = "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_normal.ply";
+    else
+        surfaceName = "loftsurf_" + int2str(n1) + "_" + int2str(n2) + "_reverse.ply";
+    end
+    copyfile(fullfile(pwd, 'blender', 'output', surfaceName), fullfile(outDir, surfaceName));
+end
 
 %> plot curvature distribution
 if PARAMS.PLOT

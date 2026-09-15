@@ -1,4 +1,3 @@
-clear;
 
 input_curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
 pairs = load(fullfile(pwd, 'tmp', 'curves_proximity_pairs')).curves_proximity_pairs;

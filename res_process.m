@@ -1,4 +1,4 @@
-clear;
+
 % res = {};
 % view = 0;
 % 

@@ -1,5 +1,6 @@
-clear;
 close all;
+clearvars -except pipelineTimer timings;
+
 addpath('util/')
 
 input_curves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
@@ -8,11 +9,11 @@ pairs = load(fullfile(pwd, 'tmp', 'curves_proximity_pairs')).curves_proximity_pa
 if ~exist(fullfile(pwd, 'blender', 'input'), 'dir')
    mkdir(fullfile(pwd, 'blender', 'input'))
 end
-if exist(fullfile(pwd, 'blender', 'output'), 'dir')
-   rmdir(fullfile(pwd, 'blender', 'output'), 's')
-   
+outputDir = fullfile(pwd, 'blender', 'output');
+if exist(outputDir, 'dir')
+   rmdir(outputDir, 's')
 end
-mkdir(fullfile(pwd, 'blender', 'output'))
+mkdir(outputDir)
 for i = 1:size(pairs, 1)
     n1 = pairs(i, 1);
     n2 = pairs(i, 2);
