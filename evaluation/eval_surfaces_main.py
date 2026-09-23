@@ -300,6 +300,89 @@ def eval_reconstruction_point_based(gt_mesh_path, rec_mesh_paths, tau=0.01, num_
     return evaluate_reconstruction(gt_points, rec_points, tau)
 
 
+def compute_precision_area(rec_mesh, gt_mesh, tau):
+    """Fraction of reconstruction area within tau of the GT surface."""
+    return calculate_area_coverage(source_mesh=rec_mesh, target_mesh=gt_mesh, tau=tau)
+
+
+def compute_precision_point(rec_mesh, gt_mesh, tau, num_points=100000):
+    """Fraction of reconstruction samples within tau of the GT surface."""
+    gt_points = sample_surface_points(gt_mesh, num_points)
+    rec_points = sample_surface_points(rec_mesh, num_points)
+    if len(rec_points) == 0 or len(gt_points) == 0:
+        return 0.0
+    gt_tree = cKDTree(gt_points)
+    dist_to_gt, _ = gt_tree.query(rec_points)
+    return float(np.mean(dist_to_gt < tau) * 100.0)
+
+
+def eval_per_surface(gt_mesh_path, ply_files, mode='area', tau=0.02, num_points=100000):
+    """
+    Evaluate precision of each reconstructed PLY against the full GT mesh.
+
+    Per-surface recall against the whole GT is not reported: a single loft
+    patch cannot cover the object, so that number is not meaningful. Use the
+    global evaluation for object-level recall / F1.
+    """
+    gt_mesh = trimesh.load(gt_mesh_path, force='mesh')
+    if gt_mesh.is_empty:
+        raise ValueError(f"Ground truth mesh is empty: {gt_mesh_path}")
+
+    # Align GT into the ABC-NEF unit box; reconstructions are already there.
+    gt_mesh = normalize_to_unit_box(gt_mesh)
+
+    results = []
+    for ply_path in ply_files:
+        rec_mesh = trimesh.load(ply_path, force='mesh')
+        if rec_mesh.is_empty:
+            continue
+
+        if mode == 'area':
+            precision = compute_precision_area(rec_mesh, gt_mesh, tau)
+        else:
+            precision = compute_precision_point(rec_mesh, gt_mesh, tau, num_points=num_points)
+
+        results.append({
+            'file': os.path.basename(ply_path),
+            'precision': precision,
+            'area': float(rec_mesh.area),
+        })
+
+    if len(results) == 0:
+        raise ValueError('No valid reconstructed meshes found for per-surface evaluation.')
+
+    return results
+
+
+def print_per_surface_results(results, mode_label, tau):
+    """Print a per-surface precision table and summary statistics."""
+    print("--- Per-Surface Precision ---")
+    print(f"Mode:            {mode_label}")
+    print(f"Threshold (tau): {tau}")
+    print(f"{'Surface':<40} {'Precision':>10} {'Area':>12}")
+    print("-" * 64)
+
+    #> Loop over all PLY files and print the precision and the mesh surface area of that PLY (irrelevant to the area mode)
+    for row in results:
+        print(f"{row['file']:<40} {row['precision']:9.2f}% {row['area']:12.4f}")
+
+    # precisions = np.array([row['precision'] for row in results], dtype=float)
+    # areas = np.array([row['area'] for row in results], dtype=float)
+    # mean_p = float(np.mean(precisions))
+    # median_p = float(np.median(precisions))
+    # if np.sum(areas) > 0:
+    #     weighted_p = float(np.sum(precisions * areas) / np.sum(areas))
+    # else:
+    #     weighted_p = 0.0
+
+    # print("-" * 64)
+    # print(f"Surfaces:              {len(results)}")
+    # print(f"Mean precision:        {mean_p:.2f}%")
+    # print(f"Median precision:      {median_p:.2f}%")
+    # print(f"Area-weighted mean:    {weighted_p:.2f}%")
+    # print()
+
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Evaluate 3D reconstruction using point-based or area coverage metrics.")
     parser.add_argument('--mode', choices=['point', 'area'], default='area',
@@ -312,6 +395,8 @@ def parse_arguments():
                         help='Distance threshold for matching in normalized coordinates.')
     parser.add_argument('--num-points', type=int, default=100000,
                         help='Number of points to sample per surface for point-based evaluation.')
+    parser.add_argument('--per-surface', action='store_true',
+                        help='Also report precision for each reconstructed PLY (no per-surface recall).')
     parser.add_argument('--visualize-normalized', action='store_true',
                         help='Visualize normalized ground truth and reconstructed meshes together.')
     return parser.parse_args()
@@ -331,6 +416,18 @@ if __name__ == "__main__":
         gt_mesh, rec_mesh = normalize_to_unit_box(gt_mesh, rec_mesh)
         visualize_meshes(gt_mesh, rec_mesh, title='Normalized GT and Reconstruction')
 
+    mode_label = 'Area coverage' if args.mode == 'area' else 'Point-based'
+
+    if args.per_surface:
+        per_surface_results = eval_per_surface(
+            gt_mesh_path=args.gt_file,
+            ply_files=ply_files,
+            mode=args.mode,
+            tau=args.tau,
+            num_points=args.num_points,
+        )
+        print_per_surface_results(per_surface_results, mode_label, args.tau)
+
     if args.mode == 'area':
         rec_meshes = load_reconstructed_meshes(args.filtered_dir)
         rec_mesh = concatenate_meshes(rec_meshes)
@@ -339,7 +436,6 @@ if __name__ == "__main__":
             rec_mesh=rec_mesh,
             tau=args.tau
         )
-        mode_label = 'Area coverage'
     else:
         precision, recall, f1 = eval_reconstruction_point_based(
             gt_mesh_path=args.gt_file,
@@ -347,9 +443,8 @@ if __name__ == "__main__":
             tau=args.tau,
             num_points=args.num_points
         )
-        mode_label = 'Point-based'
 
-    print("--- 3D Reconstruction Evaluation Results ---")
+    print("--- Global Reconstruction Evaluation Results ---")
     print(f"Mode:            {mode_label}")
     print(f"Threshold (tau): {args.tau}")
     print(f"Precision:       {precision:.2f}%")
