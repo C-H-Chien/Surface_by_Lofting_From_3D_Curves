@@ -51,6 +51,12 @@ python3 evaluation/eval_surfaces_main.py \
   --mode point \
   --gt-file /path/to/gt.obj \
   --visualize-normalized
+
+# Per-surface precision (plus global precision / recall / F1)
+python3 evaluation/eval_surfaces_main.py \
+  --mode point \
+  --gt-file /path/to/gt.obj \
+  --per-surface
 ```
 
 ### Arguments
@@ -62,6 +68,7 @@ python3 evaluation/eval_surfaces_main.py \
 | `--filtered-dir` | `tmp/filtered_surfaces` | Directory of reconstructed PLYs |
 | `--tau` | `0.02` | Distance threshold in the normalized unit-cube coordinate |
 | `--num-points` | `100000` | Samples per surface for point-based mode |
+| `--per-surface` | off | Also report precision for each reconstructed PLY |
 | `--visualize-normalized` | off | Show GT and reconstruction after alignment |
 
 ## Coordinate alignment
@@ -74,6 +81,12 @@ A point / surface patch counts as a match if its distance to the other surface i
 - Precision: how much of the reconstruction is close to the GT
 - Recall: how much of the GT is covered by the reconstruction
 - F1: harmonic mean of precision and recall
+
+### Global vs per-surface
+
+By default, all reconstructed PLYs are concatenated and scored once against the GT and returns the evaluation results in terms of precision, ,recall, and F1-socre, globally.
+
+With `--per-surface`, each PLY is also scored individually. In this case, only precision is reported per file, since a single loft patch cannot cover the whole object and thus per-surface recall against the full GT is not meaningful. The table also includes mean, median, and area-weighted mean precision, then the usual global metrics.
 
 ### Area-based (`--mode area`) (Still under development)
 
