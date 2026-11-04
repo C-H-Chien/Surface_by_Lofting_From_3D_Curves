@@ -32,11 +32,17 @@ tic
 gaussian_curvature_filter;
 timings.gaussian_curvature_filter = toc;
 
-%% Do occlusion reasoning
-disp("Start occlusion_consistency_check")
+%% 2D occlusion reasoning: per (view, surface) cross-rotation point validation
+disp("Start Cross_Rotation_point_validation")
 tic
-occlusion_consistency_check;
-timings.occlusion_consistency_check = toc;
+Cross_Rotation_point_validation;
+timings.cross_rotation = toc;
+
+%% Filter surfaces from the cross-rotation results (Otsu)
+disp("Start Occlusion_2D_filter")
+tic
+Occlusion_2D_filter;
+timings.occlusion_2d_filter = toc;
 
 timings.total = toc(pipelineTimer);
 
@@ -45,7 +51,8 @@ fprintf("preProcess_3D_Curves_main:      %.3f\n", timings.pre_process);
 fprintf("proximity_paring:               %.3f\n", timings.proximity_paring);
 fprintf("loft:                           %.3f\n", timings.lofting);
 fprintf("gaussian_curvature_filter:      %.3f\n", timings.gaussian_curvature_filter);
-fprintf("occlusion_consistency_check:    %.3f\n", timings.occlusion_consistency_check);
+fprintf("Cross_Rotation_point_validation:%.3f\n", timings.cross_rotation);
+fprintf("Occlusion_2D_filter:            %.3f\n", timings.occlusion_2d_filter);
 fprintf("TOTAL:                          %.3f\n", timings.total);
 disp("----------------------------------------------------------")
 
