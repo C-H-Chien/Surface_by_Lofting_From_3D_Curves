@@ -17,7 +17,7 @@ addpath(fullfile(pwd, 'util', 'plyread'));
 
 % ---- what to show ----
 PARAMS.PLY_DIR  = fullfile(pwd, 'tmp', 'filtered_surfaces');   % every *.ply in here is processed
-PARAMS.PLY_NAME = 'loftsurf_6_21_normal.ply';   % '' = run ALL .ply in PLY_DIR; otherwise only this one, e.g. 'loftsurf_12_34_xxx.ply'
+PARAMS.PLY_NAME = 'loftsurf_12_21_normal.ply';   % '' = run ALL .ply in PLY_DIR; otherwise only this one, e.g. 'loftsurf_12_34_xxx.ply'
                         % (.ply extension optional; a cell array of names or a wildcard such as 'loftsurf_12_34_*' also works)
 PARAMS.GT_FILE  = fullfile(pwd, 'data', 'ABC-NEF', '00000325', ...
     '00000325_3062bccff48e47a2b9de05e3_trimesh_020.obj');
