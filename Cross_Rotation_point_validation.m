@@ -4,7 +4,7 @@ addpath(fullfile(pwd, 'util'));
 addpath(fullfile(pwd, 'util', 'plyread'));
 
 % Standalone script: same outputs as Occlusion_2D.m, minus the grid
-% 1) runs on EVERY .ply surface in tmp/filtered_surfaces
+% 1) runs on EVERY .ply surface in tmp/surfaces_after_curvature_filter
 % 2) Figure 1: GT .obj, lofted surface .ply and the two curves of the pair (3D)
 % 3) Figure 2: camera view -- GT 2D edge points of curve 1 / curve 2 in VIEW_ID
 % 4) Figure 3: linear interpolation between those two 2D curves in VIEW_ID
@@ -13,7 +13,7 @@ addpath(fullfile(pwd, 'util', 'plyread'));
 % classification results are collected in the `results` table either way.
 
 % ---- what to run ----
-PARAMS.PLY_DIR  = fullfile(pwd, 'tmp', 'filtered_surfaces');
+PARAMS.PLY_DIR  = fullfile(pwd, 'tmp', 'surfaces_after_curvature_filter');
 PARAMS.PLY_NAME = '';   % '' = run ALL .ply in PLY_DIR; otherwise only this one, e.g. 'loftsurf_8_17_reverse.ply'
                         % (.ply extension optional; a cell array of names or a wildcard such as 'loftsurf_8_17_*' also works)
 PARAMS.GT_FILE  = fullfile(pwd, 'data', 'ABC-NEF', '00000325', ...
@@ -24,9 +24,15 @@ PARAMS.CORRESP_JSON = fullfile(pwd, 'tools', 'GT_edge_corresp_ABC_NEF', 'GT_3D_2
 PARAMS.GRID_CELL_SIZE = 5;  % pixels; only used to look up the lit points, the grid is not drawn (0 = no lit points)
 PARAMS.INTERP_STEPS = 10;   % number of in-between curves between curve 1 and curve 2
 PARAMS.SHOW_SURFACE = 1;   % 1 = also draw the lofted .ply surface
-PARAMS.SHOW_FIGURES = 0;   % 1 = draw the figures (off for now: one set per surface)
+PARAMS.SHOW_FIGURES = 1;   % 1 = draw the figures (off for now: one set per surface)
 PARAMS.RESULTS_FILE = fullfile(pwd, 'tmp', 'cross_rotation_results.mat');   % per-(view, surface) results, read by Occlusion_2D_filter.m ('' = do not save)
-PARAMS.Linear_Interpolaiton_visualization = 0;   % 1 = extra figure like Linear_Interpolaiton_visualization.m (covered grid cells, grid, curves 1/2, other edges, GT 2D edge overlay)
+PARAMS.Linear_Interpolaiton_visualization = 1;   % 1 = extra figure like Linear_Interpolaiton_visualization.m (covered grid cells, grid, curves 1/2, other edges, GT 2D edge overlay)
+PARAMS.DISPLAY_FIGURES = 0;   % 0 = no figures at all (overrides the two toggles above), 1 = use the toggles above as set
+if PARAMS.DISPLAY_FIGURES == 0
+    PARAMS.SHOW_FIGURES = 0;
+    PARAMS.Linear_Interpolaiton_visualization = 0;
+end
+
 
 % ---- curves (same source proximity_paring.m uses) ----
 inputCurves = load(fullfile(pwd, 'tmp', 'preProcessedCurves.mat')).preProcessedCurves.points;
@@ -85,39 +91,48 @@ resNotOnPair = nan(nRows, 1);    % lit points not on curve 1/2
 resAutoOutside = nan(nRows, 1);  % excluded by the y-range check (orange)
 resGreen = nan(nRows, 1);        % tested with d1..d4
 resWithin = nan(nRows, 1);
+resArea = nan(nRows, 1);          % area (px^2) of the interpolated region (sum of rung-strip quads)
 resOutside = nan(nRows, 1);      % green points classified outside
 resStatus = strings(nRows, 1);
 
+% Per-view data, computed once up front (the loops below are surface-outer,
+% view-inner, so every view's data is reused for every surface).
+viewPtIdx = cell(nView, 1);
+viewEdgePts = cell(nView, 1);
+viewViewEdges = cell(nView, 1);
 for vi = 1:nView
-PARAMS.VIEW_ID = viewIds(vi);   % the code below reads the current view from here
-fprintf('\n########## VIEW %d ##########\n', PARAMS.VIEW_ID);
-
-blk = corr.associations(assocViews == PARAMS.VIEW_ID);
-if isempty(blk.point_index)
-    ptIdx = zeros(0, 1);
-    edgePts = zeros(0, 3);
-else
-    ptIdx = blk.point_index(:);               % 1-based GT 3D sample index
-    edgePts = reshape(blk.edge_points, [], 3); % x, y, theta
-end
-
-% GT 2D edges of this view, one per unique detected edgel (used only to
-% find the edges inside the covered cells; they are not drawn).
-if isempty(blk.edgel_index)
-    viewEdges = zeros(0, 3);
-else
-    viewEdges = reshape(blk.edge_points, [], 3);
-    [~, ue] = unique(blk.edgel_index(:));
-    viewEdges = viewEdges(sort(ue), :);
+    blk = corr.associations(assocViews == viewIds(vi));
+    if isempty(blk.point_index)
+        viewPtIdx{vi} = zeros(0, 1);
+        viewEdgePts{vi} = zeros(0, 3);
+    else
+        viewPtIdx{vi} = blk.point_index(:);                  % 1-based GT 3D sample index
+        viewEdgePts{vi} = reshape(blk.edge_points, [], 3);   % x, y, theta
+    end
+    % GT 2D edges of this view, one per unique detected edgel (used only to
+    % find the edges inside the covered cells; they are not drawn).
+    if isempty(blk.edgel_index)
+        viewViewEdges{vi} = zeros(0, 3);
+    else
+        ve = reshape(blk.edge_points, [], 3);
+        [~, ue] = unique(blk.edgel_index(:));
+        viewViewEdges{vi} = ve(sort(ue), :);
+    end
 end
 
 for s = 1:nSurf
-    r = (vi - 1) * nSurf + s;   % row in the results table
+fprintf('\n===== SURFACE [%d/%d] %s: all %d views =====\n', s, nSurf, plyFiles(s).name, nView);
+for vi = 1:nView
+    PARAMS.VIEW_ID = viewIds(vi);   % the code below reads the current view from here
+    ptIdx = viewPtIdx{vi};
+    edgePts = viewEdgePts{vi};
+    viewEdges = viewViewEdges{vi};
+    r = (vi - 1) * nSurf + s;   % row in the results table (same layout as before)
     resView(r) = PARAMS.VIEW_ID;
     plyName = plyFiles(s).name;
     plyPath = fullfile(plyFiles(s).folder, plyName);
     resName(r) = plyName;
-    fprintf('\n===== [%d/%d] %s =====\n', s, nSurf, plyName);
+    fprintf('\n--- view %d | [%d/%d] %s ---\n', PARAMS.VIEW_ID, s, nSurf, plyName);
 
     % ---- curve pair ids from the .ply name ----
     tok = regexp(plyName, '^loftsurf_(\d+)_(\d+)', 'tokens', 'once');
@@ -189,9 +204,10 @@ for s = 1:nSurf
         if PARAMS.GRID_CELL_SIZE > 0
             nAlong = max(2, ceil(max(sqrt(sum((A - B).^2, 2))) / (PARAMS.GRID_CELL_SIZE / 4)) + 1);
             tDense = linspace(0, 1, nAlong);
-            regionPts = zeros(0, 2);
-            for k = 1:size(A, 1)
-                regionPts = [regionPts; (1 - tDense') * A(k, :) + tDense' * B(k, :)]; %#ok<AGROW>
+            nA = size(A, 1);
+            regionPts = zeros(nA * nAlong, 2);
+            for k = 1:nA
+                regionPts((k - 1) * nAlong + (1:nAlong), :) = (1 - tDense') * A(k, :) + tDense' * B(k, :);
             end
             [regionIds, regionCol, regionRow, gridInfo] = ...
                 arbitarary_edge_to_Grid_assocication(regionPts, PARAMS.GRID_CELL_SIZE, imgSize);
@@ -428,7 +444,7 @@ for s = 1:nSurf
             fprintf('Green point %d/%d (%.2f, %.2f):\n', k, size(remainR, 1), g(1), g(2));
             % "P with a bar on top" = P + combining overline (U+0305), so the
             % console matches the bar symbols in the figure.
-            Pb = ['P' char(773)];
+            Pb = 'Pbar';   % plain ASCII: the U+0305 combining char can hang the VS Code terminal
             fprintf('  d1 = (Pc2 - Pc1) x (P - Pc1) = [%.4f %.4f %.4f]\n', d1);
             fprintf('  d2 = (Pc1 - %sc1) x (P - %sc1) = [%.4f %.4f %.4f]\n', Pb, Pb, d2);
             fprintf('  d3 = (%sc1 - %sc2) x (P - %sc2) = [%.4f %.4f %.4f]\n', Pb, Pb, Pb, d3);
@@ -495,6 +511,7 @@ for s = 1:nSurf
         resAutoOutside(r) = size(outsideR, 1);
         resGreen(r) = numel(isWithin);
         resWithin(r) = nnz(isWithin);
+        resArea(r) = sum_strip_area(A, B);
         resOutside(r) = nnz(~isWithin);
         resStatus(r) = "ok";
     end
@@ -503,9 +520,9 @@ end
 
 % ---- summary over all surfaces ----
 results = table(resView, resName, resCurve1, resCurve2, resNotOnPair, resAutoOutside, ...
-                resGreen, resWithin, resOutside, resStatus, ...
+                resGreen, resWithin, resOutside, resStatus, resArea, ...
                 'VariableNames', {'view', 'surface', 'curve1', 'curve2', 'notOnPair', 'autoOutside', ...
-                                  'green', 'within', 'greenOutside', 'status'});
+                                  'green', 'within', 'greenOutside', 'status', 'regionArea'});
 fprintf('\n===== Summary: %d surfaces x %d views =====\n', nSurf, nView);
 disp(results);
 fprintf('%d processed, %d skipped; %d green points within region in total\n', ...
@@ -617,4 +634,13 @@ else
     end
 end
 F(F < 0) = F(F < 0) + size(V, 1) + 1;            % negative = relative index
+end
+
+function a = sum_strip_area(A, B)
+%SUM_STRIP_AREA Area of the region between two paired, ordered polylines A and B (N x 2).
+% Sum of the absolute areas of the two triangles of every rung strip, so a
+% twisted / self-intersecting strip never cancels itself out.
+tri = @(P, Q, R) 0.5 * abs((Q(:,1)-P(:,1)).*(R(:,2)-P(:,2)) - (Q(:,2)-P(:,2)).*(R(:,1)-P(:,1)));
+k = 1:size(A, 1) - 1;
+a = sum(tri(A(k,:), A(k+1,:), B(k,:)) + tri(A(k+1,:), B(k+1,:), B(k,:)));
 end

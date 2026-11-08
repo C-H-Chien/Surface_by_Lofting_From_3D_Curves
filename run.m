@@ -56,8 +56,6 @@ fprintf("Occlusion_2D_filter:            %.3f\n", timings.occlusion_2d_filter);
 fprintf("TOTAL:                          %.3f\n", timings.total);
 disp("----------------------------------------------------------")
 
-disp("Finished")
-
 %% ------------------------------------------------------------------
 %% Evaluation at the three pipeline points.
 %% Each point is just a folder of .ply files that already exists:
@@ -72,6 +70,22 @@ gt_file = fullfile(pwd, 'data', 'ABC-NEF', '00000325', ...
 eval_stage("Baseline (pre gaussian_curvature_filter)",     fullfile(pwd, 'blender', 'output'), gt_file);
 eval_stage("Gaussian Curvature (pre occlusion_consistency)", fullfile(pwd, 'tmp', 'surfaces_after_curvature_filter'), gt_file);
 eval_stage("Occlusion Consistency (final)",                 fullfile(pwd, 'tmp', 'filtered_surfaces'), gt_file);
+
+%% Surface counts at each pipeline point (shown last)
+nLoft       = count_ply(fullfile(pwd, 'blender', 'output'));
+nCurvature  = count_ply(fullfile(pwd, 'tmp', 'surfaces_after_curvature_filter'));
+nOcclusion  = count_ply(fullfile(pwd, 'tmp', 'filtered_surfaces'));
+disp("---------------- Surface Counts ----------------")
+fprintf("After loft (blender/output):                     %d\n", nLoft);
+fprintf("After gaussian_curvature_filter (surfaces_after_curvature_filter): %d  (removed %d)\n", nCurvature, nLoft - nCurvature);
+fprintf("After Occlusion_2D_filter (filtered_surfaces):   %d  (removed %d)\n", nOcclusion, nCurvature - nOcclusion);
+disp("------------------------------------------------------------------------")
+
+disp("Finished")
+
+function n = count_ply(plyDir)
+    n = numel(dir(fullfile(plyDir, '*.ply')));
+end
 
 function eval_stage(label, plyDir, gt_file)
     fprintf('\n===== Evaluation: %s =====\n', label);
